@@ -32,14 +32,9 @@ func LoginService(db *sql.DB, req model.LoginRequest) (*model.LoginResponse, err
 		return nil, errors.New("gagal generate token")
 	}
 
-	refreshToken, expiresAt, err := utils.GenerateRefreshToken(user.ID)
+	refreshToken, _, err := utils.GenerateRefreshToken(user.ID)
 	if err != nil {
 		return nil, errors.New("gagal generate refresh token")
-	}
-
-	err = repository.SaveRefreshToken(db, user.ID, refreshToken, expiresAt)
-	if err != nil {
-		return nil, errors.New("gagal menyimpan refresh token")
 	}
 
 	return &model.LoginResponse{
@@ -50,58 +45,34 @@ func LoginService(db *sql.DB, req model.LoginRequest) (*model.LoginResponse, err
 }
 
 func RefreshTokenService(db *sql.DB, req model.RefreshTokenRequest) (*model.LoginResponse, error) {
-	claims, err := utils.ValidateRefreshToken(req.RefreshToken)
-	if err != nil {
-		return nil, errors.New("refresh token tidak valid")
-	}
+    claims, err := utils.ValidateRefreshToken(req.RefreshToken)
+    if err != nil {
+        return nil, errors.New("refresh token tidak valid")
+    }
 
-	rt, err := repository.FindRefreshToken(db, req.RefreshToken)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.New("refresh token tidak ditemukan")
-		}
-		return nil, errors.New("terjadi kesalahan")
-	}
+    user, err := repository.FindUserByID(db, claims.UserID)
+    if err != nil {
+        return nil, errors.New("user tidak ditemukan")
+    }
 
-	if rt.UserID != claims.UserID {
-		return nil, errors.New("refresh token tidak valid")
-	}
+    token, err := utils.GenerateToken(*user)
+    if err != nil {
+        return nil, errors.New("gagal generate token")
+    }
 
-	user, err := repository.FindUserByID(db, claims.UserID)
-	if err != nil {
-		return nil, errors.New("user tidak ditemukan")
-	}
+    refreshToken, _, err := utils.GenerateRefreshToken(user.ID)
+    if err != nil {
+        return nil, errors.New("gagal generate refresh token")
+    }
 
-	token, err := utils.GenerateToken(*user)
-	if err != nil {
-		return nil, errors.New("gagal generate token")
-	}
-
-	newRefreshToken, expiresAt, err := utils.GenerateRefreshToken(user.ID)
-	if err != nil {
-		return nil, errors.New("gagal generate refresh token")
-	}
-
-	repository.DeleteRefreshToken(db, req.RefreshToken)
-
-	err = repository.SaveRefreshToken(db, user.ID, newRefreshToken, expiresAt)
-	if err != nil {
-		return nil, errors.New("gagal menyimpan refresh token")
-	}
-
-	return &model.LoginResponse{
-		Token:        token,
-		RefreshToken: newRefreshToken,
-		User:         user.ToUserResponse(),
-	}, nil
+    return &model.LoginResponse{
+        Token:        token,
+        RefreshToken: refreshToken,
+        User:         user.ToUserResponse(),
+    }, nil
 }
 
 func LogoutService(db *sql.DB, token string) error {
-	err := repository.DeleteRefreshToken(db, token)
-	if err != nil {
-		return errors.New("gagal logout")
-	}
-
 	return nil
 }
 
@@ -116,8 +87,4 @@ func GetProfileService(db *sql.DB, userID string) (*model.UserResponse, error) {
 
 	response := user.ToUserResponse()
 	return &response, nil
-}
-
-func CleanupExpiredTokensService(db *sql.DB) error {
-	return repository.CleanupExpiredTokens(db)
 }

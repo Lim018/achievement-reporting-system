@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 	"go-fiber/app/model"
-	"time"
 )
 
 func FindUserByUsernameOrEmail(db *sql.DB, identifier string) (*model.User, string, error) {
@@ -94,55 +93,4 @@ func FindUserByID(db *sql.DB, userID string) (*model.User, error) {
 	user.Permissions = permissions
 
 	return &user, nil
-}
-
-func SaveRefreshToken(db *sql.DB, userID, token string, expiresAt time.Time) error {
-	_, err := db.Exec(`
-		INSERT INTO refresh_tokens (user_id, token, expires_at)
-		VALUES ($1, $2, $3)
-	`, userID, token, expiresAt)
-
-	return err
-}
-
-func FindRefreshToken(db *sql.DB, token string) (*model.RefreshToken, error) {
-	var rt model.RefreshToken
-
-	err := db.QueryRow(`
-		SELECT id, user_id, token, expires_at, created_at
-		FROM refresh_tokens
-		WHERE token = $1 AND expires_at > NOW()
-	`, token).Scan(
-		&rt.ID, &rt.UserID, &rt.Token, &rt.ExpiresAt, &rt.CreatedAt,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &rt, nil
-}
-
-func DeleteRefreshToken(db *sql.DB, token string) error {
-	_, err := db.Exec(`
-		DELETE FROM refresh_tokens WHERE token = $1
-	`, token)
-
-	return err
-}
-
-func DeleteUserRefreshTokens(db *sql.DB, userID string) error {
-	_, err := db.Exec(`
-		DELETE FROM refresh_tokens WHERE user_id = $1
-	`, userID)
-
-	return err
-}
-
-func CleanupExpiredTokens(db *sql.DB) error {
-	_, err := db.Exec(`
-		DELETE FROM refresh_tokens WHERE expires_at < NOW()
-	`)
-
-	return err
 }
