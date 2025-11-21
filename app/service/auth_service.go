@@ -96,9 +96,7 @@ func RefreshTokenService(db *sql.DB, req model.RefreshTokenRequest) (*model.Logi
 	}, nil
 }
 
-// LogoutService - Handle user logout
 func LogoutService(db *sql.DB, token string) error {
-	// Delete refresh token from database
 	err := repository.DeleteRefreshToken(db, token)
 	if err != nil {
 		return errors.New("gagal logout")
@@ -107,7 +105,6 @@ func LogoutService(db *sql.DB, token string) error {
 	return nil
 }
 
-// GetProfileService - Get user profile
 func GetProfileService(db *sql.DB, userID string) (*model.UserResponse, error) {
 	user, err := repository.FindUserByID(db, userID)
 	if err != nil {
@@ -121,7 +118,6 @@ func GetProfileService(db *sql.DB, userID string) (*model.UserResponse, error) {
 	return &response, nil
 }
 
-// CleanupExpiredTokensService - Cleanup expired tokens (can be called via cron)
 func CleanupExpiredTokensService(db *sql.DB) error {
 	return repository.CleanupExpiredTokens(db)
 }
