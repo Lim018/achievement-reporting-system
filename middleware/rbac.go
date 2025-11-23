@@ -41,131 +41,28 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 		if !ok {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"status": "error",
-				"error":  "Akses ditolak: tidak ada informasi permission",
+				"error":  "Akses ditolak: permission tidak tersedia",
 			})
 		}
 
-		hasPermission := false
 		for _, perm := range permissions {
 			if perm == requiredPermission {
-				hasPermission = true
-				break
+				return c.Next()
 			}
 		}
 
-		if !hasPermission {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: permission tidak mencukupi",
-			})
-		}
-
-		return c.Next()
-	}
-}
-
-func RequireAnyPermission(requiredPermissions ...string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		permissions, ok := c.Locals("permissions").([]string)
-		if !ok {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: tidak ada informasi permission",
-			})
-		}
-
-		hasPermission := false
-		for _, reqPerm := range requiredPermissions {
-			for _, perm := range permissions {
-				if perm == reqPerm {
-					hasPermission = true
-					break
-				}
-			}
-			if hasPermission {
-				break
-			}
-		}
-
-		if !hasPermission {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: permission tidak mencukupi",
-			})
-		}
-
-		return c.Next()
-	}
-}
-
-func RequireAllPermissions(requiredPermissions ...string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		permissions, ok := c.Locals("permissions").([]string)
-		if !ok {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: tidak ada informasi permission",
-			})
-		}
-
-		permissionMap := make(map[string]bool)
-		for _, perm := range permissions {
-			permissionMap[perm] = true
-		}
-
-		for _, reqPerm := range requiredPermissions {
-			if !permissionMap[reqPerm] {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"status": "error",
-					"error":  "Akses ditolak: permission tidak mencukupi",
-				})
-			}
-		}
-
-		return c.Next()
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status": "error",
+			"error":  "Akses ditolak: permission tidak mencukupi",
+		})
 	}
 }
 
 func RequireRole(requiredRole string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		role, ok := c.Locals("role").(string)
-		if !ok {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: tidak ada informasi role",
-			})
-		}
+		role := c.Locals("role")
 
-		if role != requiredRole {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: role tidak sesuai",
-			})
-		}
-
-		return c.Next()
-	}
-}
-
-func RequireMultiRole(requiredRoles ...string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		role, ok := c.Locals("role").(string)
-		if !ok {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: tidak ada informasi role",
-			})
-		}
-
-		hasRole := false
-		for _, reqRole := range requiredRoles {
-			if role == reqRole {
-				hasRole = true
-				break
-			}
-		}
-
-		if !hasRole {
+		if role == nil || role != requiredRole {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"status": "error",
 				"error":  "Akses ditolak: role tidak sesuai",
