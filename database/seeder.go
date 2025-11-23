@@ -30,6 +30,11 @@ func RunSeeders(db *sql.DB) error {
 		return err
 	}
 
+	// Seed Students & Lecturers
+	if err := seedStudentsAndLecturers(db); err != nil {
+		return err
+	}
+
 	log.Println("All seeders completed successfully! ✅")
 	return nil
 }
@@ -213,4 +218,32 @@ func seedUsers(db *sql.DB) error {
 	log.Println("  - Username: mahasiswa1, Password: password123")
 	log.Println("  - Username: dosenwali1, Password: password123")
 	return nil
+}
+
+func seedStudentsAndLecturers(db *sql.DB) error {
+    log.Println("Seeding students & lecturers...")
+
+    // Example seeding
+    _, err := db.Exec(`
+        INSERT INTO students (id, student_id, study_program, year_of_entry)
+        SELECT u.id, 'NIM001', 'Teknik Informatika', 2022
+        FROM users u
+        JOIN roles r ON u.role_id = r.id
+        WHERE u.username = 'mahasiswa1'
+        ON CONFLICT (id) DO NOTHING;
+    `)
+    if err != nil { return err }
+
+    _, err = db.Exec(`
+        INSERT INTO lecturers (id, lecturer_id, department)
+        SELECT u.id, 'NIP001', 'Teknik Informatika'
+        FROM users u
+        JOIN roles r ON u.role_id = r.id
+        WHERE u.username = 'dosenwali1'
+        ON CONFLICT (id) DO NOTHING;
+    `)
+    if err != nil { return err }
+
+    log.Println("Students & Lecturers seeded ✓")
+    return nil
 }
