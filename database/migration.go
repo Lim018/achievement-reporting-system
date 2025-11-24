@@ -69,9 +69,9 @@ func RunMigrations(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_students_student_id ON students(student_id);`
-		`CREATE INDEX IF NOT EXISTS idx_students_advisor_id ON students(advisor_id);`
-		`CREATE INDEX IF NOT EXISTS idx_lecturers_lecturer_id ON lecturers(lecturer_id);`
+		`CREATE INDEX IF NOT EXISTS idx_students_student_id ON students(student_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_students_advisor_id ON students(advisor_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_lecturers_lecturer_id ON lecturers(lecturer_id);`,
 	}
 
 	for i, migration := range migrations {

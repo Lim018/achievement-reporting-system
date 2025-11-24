@@ -7,5 +7,6 @@ import (
 )
 
 func RegisterRoutes(app *fiber.App, db *sql.DB) {
-	AuthRoutes(app, db) 
+	AuthRoutes(app, db)
+	UserRoutes(app, db)
 }
