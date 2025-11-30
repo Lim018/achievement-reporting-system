@@ -9,4 +9,6 @@ import (
 func RegisterRoutes(app *fiber.App, db *sql.DB) {
 	AuthRoutes(app, db)
 	UserRoutes(app, db)
+	StudentRoutes(app, db)
+	LecturerRoutes(app, db)
 }
