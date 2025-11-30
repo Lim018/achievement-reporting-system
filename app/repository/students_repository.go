@@ -1,0 +1,98 @@
+package repository
+
+import (
+	"database/sql"
+	"go-fiber/app/model"
+)
+
+
+func GetAllStudents(db *sql.DB) ([]model.StudentListResponse, error) {
+	rows, err := db.Query(`
+		SELECT s.id, u.full_name, s.student_id, s.study_program,
+		       s.advisor_id,
+		       (SELECT full_name FROM users WHERE id = s.advisor_id) AS advisor_name
+		FROM students s
+		JOIN users u ON s.id = u.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []model.StudentListResponse
+	for rows.Next() {
+		var s model.StudentListResponse
+		err := rows.Scan(&s.ID, &s.FullName, &s.StudentID, &s.StudyProgram, &s.AdvisorID, &s.AdvisorName)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+
+	return list, nil
+}
+
+// func GetStudentDetail(db *sql.DB, id string) (*model.StudentDetailResponse, error) {
+// 	var s model.StudentDetailResponse
+
+// 	err := db.QueryRow(`
+// 		SELECT s.id, u.full_name, s.student_id, s.study_program,
+// 		       s.advisor_id,
+// 		       (SELECT full_name FROM users WHERE id = s.advisor_id) AS advisor_name
+// 		FROM students s
+// 		JOIN users u ON s.id = u.id
+// 		WHERE s.id = $1`,
+// 		id).Scan(&s.ID, &s.FullName, &s.StudentID, &s.StudyProgram, &s.AdvisorID, &s.AdvisorName)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &s, nil
+// }
+
+func GetStudentByID(db *sql.DB, id string) (*model.StudentDetailResponse, error) {
+	var s model.StudentDetailResponse
+
+	err := db.QueryRow(`
+		SELECT s.id, u.full_name, s.student_id, s.study_program, 
+		       a.full_name AS advisor_name
+		FROM students s
+		JOIN users u ON s.id = u.id
+		LEFT JOIN users a ON s.advisor_id = a.id
+		WHERE s.id = $1
+	`, id).Scan(
+		&s.ID, &s.FullName, &s.StudentID, &s.StudyProgram, &s.AdvisorName,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
+func GetLecturerByID(db *sql.DB, id string) (*model.LecturerDetailResponse, error) {
+	var l model.LecturerDetailResponse
+
+	err := db.QueryRow(`
+		SELECT l.id, u.full_name, l.lecturer_id, l.department
+		FROM lecturers l
+		JOIN users u ON l.id = u.id
+		WHERE l.id = $1
+	`, id).Scan(
+		&l.ID, &l.FullName, &l.LecturerID, &l.Department,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &l, nil
+}
+
+func UpdateStudentAdvisor(db *sql.DB, studentID, advisorID string) error {
+	_, err := db.Exec(`
+		UPDATE students SET advisor_id = $1 WHERE id = $2`,
+		advisorID, studentID)
+	return err
+}

@@ -69,6 +69,6 @@ func main() {
 		port = "3000"
 	}
 
-	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("Server starting on port %s", port)
 	log.Fatal(app.Listen(":" + port))
 }

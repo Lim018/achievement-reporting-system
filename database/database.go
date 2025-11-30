@@ -18,6 +18,6 @@ func ConnectDB() *sql.DB {
         log.Fatal("Database tidak connect:", err)
     }
 
-    log.Println("DB Connected ✅")
+    log.Println("DB Connected")
     return db
 }
