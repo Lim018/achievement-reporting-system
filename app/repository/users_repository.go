@@ -88,6 +88,17 @@ func CreateUserTx(db *sql.DB, req model.CreateUserRequest, hashedPass string) er
         }
     }
 
+    if req.AdvisorID != nil {
+        _, err = tx.Exec(`
+            UPDATE students SET advisor_id = $1
+            WHERE id = $2
+        `, *req.AdvisorID, userID)
+        if err != nil {
+            tx.Rollback()
+            return err
+        }
+    }
+
     if req.LecturerID != nil {
         _, err = tx.Exec(`
             INSERT INTO lecturers (id, lecturer_id, department)

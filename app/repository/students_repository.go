@@ -8,27 +8,40 @@ import (
 
 func GetAllStudents(db *sql.DB) ([]model.StudentListResponse, error) {
 	rows, err := db.Query(`
-		SELECT s.id, u.full_name, s.student_id, s.study_program,
-		       s.advisor_id,
-		       (SELECT full_name FROM users WHERE id = s.advisor_id) AS advisor_name
+		SELECT s.id, u.full_name, s.student_id, s.study_program, s.year_of_entry,
+		       a.full_name AS advisor_name
 		FROM students s
-		JOIN users u ON s.id = u.id`)
+		JOIN users u ON s.id = u.id
+		LEFT JOIN users a ON s.advisor_id = a.id
+		ORDER BY s.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var list []model.StudentListResponse
+	var students []model.StudentListResponse
+
 	for rows.Next() {
 		var s model.StudentListResponse
-		err := rows.Scan(&s.ID, &s.FullName, &s.StudentID, &s.StudyProgram, &s.AdvisorID, &s.AdvisorName)
-		if err != nil {
+		var advisor *string
+
+		if err := rows.Scan(
+			&s.ID,
+			&s.FullName,
+			&s.StudentID,
+			&s.StudyProgram,
+			&s.YearOfEntry,
+			&advisor,
+		); err != nil {
 			return nil, err
 		}
-		list = append(list, s)
+
+		s.AdvisorName = advisor
+
+		students = append(students, s)
 	}
 
-	return list, nil
+	return students, nil
 }
 
 // func GetStudentDetail(db *sql.DB, id string) (*model.StudentDetailResponse, error) {

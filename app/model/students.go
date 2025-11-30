@@ -31,5 +31,5 @@ type StudentDetailResponse struct {
 }
 
 type UpdateStudentAdvisorRequest struct {
-	AdvisorID *string `json:"advisor_id,omitempty"`
+    AdvisorID string `json:"advisor_id" validate:"required"`
 }
