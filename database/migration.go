@@ -50,17 +50,19 @@ func RunMigrations(db *sql.DB) error {
 		// Create lecturers table
 		`CREATE TABLE IF NOT EXISTS lecturers (
 			id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-			lecturer_id VARCHAR(20) UNIQUE NOT NULL,
-			department VARCHAR(100)
+			lecturer_id VARCHAR(50) UNIQUE NOT NULL,
+			department VARCHAR(100),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 		// Create students table
 		`CREATE TABLE IF NOT EXISTS students (
 			id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-			student_id VARCHAR(20) UNIQUE NOT NULL,
+			student_id VARCHAR(50) UNIQUE NOT NULL,
 			study_program VARCHAR(100),
 			year_of_entry INT,
-			advisor_id UUID REFERENCES lecturers(id) ON DELETE SET NULL
+			advisor_id UUID REFERENCES lecturers(id) ON DELETE SET NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 
