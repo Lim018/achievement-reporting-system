@@ -1,38 +1,6 @@
 package model
 
-import (
-	"time"
-	"github.com/golang-jwt/jwt/v5"
-)
-
-type Role struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type Permission struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Resource    string    `json:"resource"`
-	Action      string    `json:"action"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	FullName     string    `json:"full_name"`
-	RoleID       string    `json:"role_id"`
-	Role         *Role     `json:"role,omitempty"`
-	Permissions  []string  `json:"permissions,omitempty"`
-	IsActive     bool      `json:"is_active"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
+import "github.com/golang-jwt/jwt/v5"
 
 type LoginRequest struct {
 	Username string `json:"username" validate:"required"`
@@ -76,20 +44,4 @@ type JWTClaims struct {
 type RefreshTokenClaims struct {
 	UserID string `json:"user_id"`
 	jwt.RegisteredClaims
-}
-
-func (u *User) ToUserResponse() UserResponse {
-	roleName := ""
-	if u.Role != nil {
-		roleName = u.Role.Name
-	}
-	
-	return UserResponse{
-		ID:          u.ID,
-		Username:    u.Username,
-		Email:       u.Email,
-		FullName:    u.FullName,
-		Role:        roleName,
-		Permissions: u.Permissions,
-	}
 }
