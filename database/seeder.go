@@ -96,10 +96,6 @@ func seedPermissions(db *sql.DB) error {
 		{"prestasi:delete", "prestasi", "delete", "Menghapus prestasi"},
 		{"prestasi:verify", "prestasi", "verify", "Memverifikasi prestasi mahasiswa bimbingannya"},
 		{"prestasi:manage", "prestasi", "manage", "Mengelola semua prestasi"},
-
-		// Dashboard permissions
-		{"dashboard:view", "dashboard", "view", "Melihat dashboard"},
-		{"dashboard:admin", "dashboard", "admin", "Melihat dashboard admin"},
 	}
 
 	for _, perm := range permissions {
@@ -129,7 +125,6 @@ func seedRolePermissions(db *sql.DB) error {
 		"role:read", "role:manage",
 		"prestasi:read", "prestasi:create", "prestasi:update", "prestasi:delete", 
 		"prestasi:verify", "prestasi:manage",
-		"dashboard:view", "dashboard:admin",
 	}
 
 	// Mahasiswa - Create, read, update prestasi sendiri
@@ -190,11 +185,11 @@ func seedUsers(db *sql.DB) error {
 		role      string
 		isActive  bool
 	}{
-		{"admin", "admin@example.com", defaultPassword, "Administrator", "Admin", true},
-		{"mahasiswa1", "mahasiswa1@example.com", defaultPassword, "Budi Santoso", "Mahasiswa", true},
-		{"mahasiswa2", "mahasiswa2@example.com", defaultPassword, "Siti Aminah", "Mahasiswa", true},
-		{"dosenwali1", "dosenwali1@example.com", defaultPassword, "Dr. Ahmad Rahman", "Dosen Wali", true},
-		{"dosenwali2", "dosenwali2@example.com", defaultPassword, "Dr. Dewi Sartika", "Dosen Wali", true},
+		{"admin", "admin@gmail.com", defaultPassword, "Administrator", "Admin", true},
+		{"alim", "alim@gmail.com", defaultPassword, "Abdul", "Mahasiswa", true},
+		{"aca", "aca@gmail.com", defaultPassword, "Vanesha", "Mahasiswa", true},
+		{"pa anank", "pa anank@gmail.com", defaultPassword, "Dr. Anank", "Dosen Wali", true},
+		{"pa arman", "pa arman@gmail.com", defaultPassword, "Dr. Rahman", "Dosen Wali", true},
 	}
 
 	for _, user := range users {
