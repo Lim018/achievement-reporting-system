@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -19,6 +20,12 @@ func main() {
 
 	db := database.ConnectDB()
 	defer db.Close()
+
+	mongoDB, err := database.ConnectMongo()
+	if err != nil {
+		log.Fatal("Failed to connect MongoDB:", err)
+	}
+	log.Println("MongoDB Connected")
 
 	if *reset {
 		log.Println("⚠️  RESETTING DATABASE - This will delete all data!")
@@ -62,13 +69,13 @@ func main() {
 
 	app := config.NewApp(db)
 
-	routes.RegisterRoutes(app, db)
+	routes.RegisterRoutes(app, db, mongoDB)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "3000"
 	}
 
-	log.Printf("Server starting on port %s", port)
+	log.Println("Server running on port", port)
 	log.Fatal(app.Listen(":" + port))
 }
