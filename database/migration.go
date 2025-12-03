@@ -65,15 +65,30 @@ func RunMigrations(db *sql.DB) error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 
+		// Create achievement_references table
+		`CREATE TABLE IF NOT EXISTS achievement_references (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+			mongo_achievement_id VARCHAR(24) NOT NULL,
+			status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'submitted', 'verified', 'rejected')),
+			submitted_at TIMESTAMP,
+			verified_at TIMESTAMP,
+			verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+			rejection_note TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
 
-		// Create index for better performance
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_students_student_id ON students(student_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_students_advisor_id ON students(advisor_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_lecturers_lecturer_id ON lecturers(lecturer_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_students_student_id ON students(student_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_students_advisor_id ON students(advisor_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_lecturers_lecturer_id ON lecturers(lecturer_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_student_id ON achievement_references(student_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_mongo_id ON achievement_references(mongo_achievement_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_status ON achievement_references(status)`,
 	}
 
 	for i, migration := range migrations {
@@ -93,12 +108,13 @@ func DropTables(db *sql.DB) error {
 	log.Println("Dropping all tables...")
 
 	drops := []string{
+		`DROP TABLE IF EXISTS achievement_references CASCADE`,
+		`DROP TABLE IF EXISTS students CASCADE`,
+		`DROP TABLE IF EXISTS lecturers CASCADE`,
 		`DROP TABLE IF EXISTS users CASCADE`,
 		`DROP TABLE IF EXISTS role_permissions CASCADE`,
 		`DROP TABLE IF EXISTS permissions CASCADE`,
 		`DROP TABLE IF EXISTS roles CASCADE`,
-		`DROP TABLE IF EXISTS lecturers CASCADE`,
-		`DROP TABLE IF EXISTS students CASCADE`,
 	}
 
 	for _, drop := range drops {
