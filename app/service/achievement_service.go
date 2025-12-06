@@ -388,11 +388,19 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 			var submittedAt, verifiedAt sql.NullTime
 			var verifiedBy, rejectionNote sql.NullString
 			var mongoHex string
+
 			err := rows.Scan(&item.ReferenceID, &mongoHex, &item.ReferenceStatus, &submittedAt, &verifiedAt, &verifiedBy, &rejectionNote, &item.CreatedAtRef, &item.UpdatedAtRef)
 			if err != nil {
 				return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca rows"})
 			}
+
 			item.MongoID = mongoHex
+
+			doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
+			if err == nil {
+				item.Achievement = *doc
+			}
+
 			if submittedAt.Valid {
 				item.SubmittedAt = &submittedAt.Time
 			}
@@ -400,15 +408,17 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 				item.VerifiedAt = &verifiedAt.Time
 			}
 			if verifiedBy.Valid {
-				sv := verifiedBy.String
-				item.VerifiedBy = &sv
+				v := verifiedBy.String
+				item.VerifiedBy = &v
 			}
 			if rejectionNote.Valid {
-				r := rejectionNote.String
-				item.RejectionNote = &r
+				v := rejectionNote.String
+				item.RejectionNote = &v
 			}
+
 			out = append(out, item)
 		}
+
 		return c.JSON(model.APIResponse{Status: "success", Data: out})
 
 	case "Dosen Wali":
@@ -435,6 +445,10 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 				return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca rows"})
 			}
 			item.MongoID = mongoHex
+			doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
+			if err == nil {
+				item.Achievement = *doc
+			}
 			if submittedAt.Valid {
 				item.SubmittedAt = &submittedAt.Time
 			}
@@ -457,6 +471,13 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 		out, err := s.PGRepo.ListForStudent(userID)
 		if err != nil {
 			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data mahasiswa"})
+		}
+		
+		for i := range out {
+			doc, err := s.Mongo.FindByHexID(context.Background(), out[i].MongoID)
+			if err == nil {
+				out[i].Achievement = *doc
+			}
 		}
 		return c.JSON(model.APIResponse{Status: "success", Data: out})
 	}
