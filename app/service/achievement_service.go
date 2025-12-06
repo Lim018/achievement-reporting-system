@@ -231,6 +231,21 @@ func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
 	}
 	refID := c.Params("id")
 
+	var studentID string
+	err := s.PG.QueryRow(`
+		SELECT ar.student_id
+		FROM achievement_references ar
+		JOIN students s ON ar.student_id = s.id
+		WHERE ar.id = $1 AND s.advisor_id = $2
+	`, refID, verifierID).Scan(&studentID)
+
+	if err != nil {
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Anda tidak memiliki akses terhadap achievement ini",
+		})
+	}
+
 	if err := s.PGRepo.VerifyReference(refID, verifierID, ""); err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal verifikasi"})
 	}
@@ -244,6 +259,21 @@ func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
 		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Akses ditolak"})
 	}
 	refID := c.Params("id")
+
+	var studentID string
+	err := s.PG.QueryRow(`
+		SELECT ar.student_id
+		FROM achievement_references ar
+		JOIN students s ON ar.student_id = s.id
+		WHERE ar.id = $1 AND s.advisor_id = $2
+	`, refID, verifierID).Scan(&studentID)
+
+	if err != nil {
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Anda tidak memiliki akses terhadap achievement ini",
+		})
+	}
 
 	var body struct {
 		Note string `json:"note"`
@@ -472,7 +502,7 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 		if err != nil {
 			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data mahasiswa"})
 		}
-		
+
 		for i := range out {
 			doc, err := s.Mongo.FindByHexID(context.Background(), out[i].MongoID)
 			if err == nil {
