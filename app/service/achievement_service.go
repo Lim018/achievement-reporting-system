@@ -261,6 +261,8 @@ func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
 
 func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 	refID := c.Params("id")
+	role := getUserRole(c)
+	userID := getUserID(c)
 
 	row := s.PG.QueryRow(`
 		SELECT id, student_id, mongo_achievement_id, status,
@@ -295,6 +297,40 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 		})
 	}
 
+	switch role {
+
+	case "Admin":
+		break
+
+	case "Dosen Wali":
+		var count int
+		err := s.PG.QueryRow(`
+			SELECT COUNT(*) FROM students
+			WHERE id = $1 AND advisor_id = $2
+		`, studentID, userID).Scan(&count)
+
+		if err != nil || count == 0 {
+			return c.Status(403).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Akses ditolak: bukan mahasiswa bimbingan",
+			})
+		}
+
+	case "Mahasiswa":
+		if studentID != userID {
+			return c.Status(403).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Akses ditolak: bukan milik Anda",
+			})
+		}
+
+	default:
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Role tidak dikenali",
+		})
+	}
+
 	achDoc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -319,12 +355,12 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 		resp.VerifiedAt = &verifiedAt.Time
 	}
 	if verifiedBy.Valid {
-		v := verifiedBy.String
-		resp.VerifiedBy = &v
+		s := verifiedBy.String
+		resp.VerifiedBy = &s
 	}
 	if rejectionNote.Valid {
-		v := rejectionNote.String
-		resp.RejectionNote = &v
+		s := rejectionNote.String
+		resp.RejectionNote = &s
 	}
 
 	return c.JSON(model.APIResponse{Status: "success", Data: resp})
