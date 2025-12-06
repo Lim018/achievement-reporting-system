@@ -67,20 +67,12 @@ func seedPermissions(db *sql.DB) error {
 		action      string
 		description string
 	}{
-		{"user:read", "user", "read", "Membaca data user"},
-		{"user:create", "user", "create", "Membuat user baru"},
-		{"user:update", "user", "update", "Mengupdate data user"},
-		{"user:delete", "user", "delete", "Menghapus user"},
-
-		{"role:read", "role", "read", "Membaca data role"},
-		{"role:manage", "role", "manage", "Mengelola role dan permission"},
-
-		{"prestasi:read", "prestasi", "read", "Membaca data prestasi"},
-		{"prestasi:create", "prestasi", "create", "Membuat prestasi baru"},
-		{"prestasi:update", "prestasi", "update", "Mengupdate prestasi sendiri"},
-		{"prestasi:delete", "prestasi", "delete", "Menghapus prestasi"},
-		{"prestasi:verify", "prestasi", "verify", "Memverifikasi prestasi mahasiswa bimbingannya"},
-		{"prestasi:manage", "prestasi", "manage", "Mengelola semua prestasi"},
+		{"user:manage", "user", "manage", "Mengelola data user"},
+		{"achievement:create", "achievement", "create", "Membuat prestasi baru"},
+		{"achievement:read", "achievement", "read", "Membaca prestasi"},
+		{"achievement:update", "achievement", "update", "Mengupdate prestasi"},
+		{"achievement:delete", "achievement", "delete", "Menghapus prestasi"},
+		{"achievement:verify", "achievement", "verify", "Memverifikasi prestasi mahasiswa"},
 	}
 
 	for _, perm := range permissions {
@@ -104,20 +96,24 @@ func seedRolePermissions(db *sql.DB) error {
 	log.Println("Seeding role permissions...")
 
 	adminPerms := []string{
-		"user:read", "user:create", "user:update", "user:delete",
-		"role:read", "role:manage",
-		"prestasi:read", "prestasi:create", "prestasi:update", "prestasi:delete", 
-		"prestasi:verify", "prestasi:manage",
+		"user:manage",
+		"achievement:read",
+		"achievement:create",
+		"achievement:update",
+		"achievement:delete",
+		"achievement:verify",
 	}
 
 	mahasiswaPerms := []string{
-		"prestasi:read", "prestasi:create", "prestasi:update",
-		"dashboard:view",
+		"achievement:read",
+		"achievement:create",
+		"achievement:update",
+		"achievement:delete",
 	}
 
 	dosenWaliPerms := []string{
-		"prestasi:read", "prestasi:verify",
-		"dashboard:view",
+		"achievement:read",
+		"achievement:verify",
 	}
 
 	rolePermissions := map[string][]string{
