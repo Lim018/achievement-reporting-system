@@ -57,18 +57,3 @@ func RequirePermission(requiredPermission string) fiber.Handler {
 		})
 	}
 }
-
-func RequireRole(requiredRole string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		role := c.Locals("role")
-
-		if role == nil || role != requiredRole {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status": "error",
-				"error":  "Akses ditolak: role tidak sesuai",
-			})
-		}
-
-		return c.Next()
-	}
-}
