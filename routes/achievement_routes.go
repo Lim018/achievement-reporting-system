@@ -11,18 +11,25 @@ import (
 
 func AchievementRoutes(app *fiber.App, db *sql.DB, mongoDB *mongo.Database) {
 	svc := service.NewAchievementService(db, mongoDB)
-	r := app.Group("/api/v1/achievements", middleware.AuthRequired())
+	achievement := app.Group("/api/v1/achievements", middleware.AuthRequired())
 
-	r.Get("/", func(c *fiber.Ctx) error { return svc.ListAchievementsService(c) })
-	r.Get("/:id", func(c *fiber.Ctx) error { return svc.GetAchievementDetailService(c) })
-	r.Get("/:id/history", func(c *fiber.Ctx) error { return svc.GetHistoryService(c) })
+	achievement.Get("/", middleware.RequirePermission("achievement:read"), svc.ListAchievementsService,)
 
-	r.Post("/", func(c *fiber.Ctx) error { return svc.CreateAchievementService(c) })
-	r.Put("/:id", func(c *fiber.Ctx) error { return svc.UpdateAchievementService(c) })
-	r.Delete("/:id", func(c *fiber.Ctx) error { return svc.DeleteAchievementService(c) })
-	r.Post("/:id/submit", func(c *fiber.Ctx) error { return svc.SubmitAchievementService(c) })
-	r.Post("/:id/attachments", func(c *fiber.Ctx) error { return svc.UploadAttachmentsService(c) })
+	achievement.Get("/:id", middleware.RequirePermission("achievement:read"), svc.GetAchievementDetailService,)
 
-	r.Post("/:id/verify", middleware.RequireRole("Dosen Wali"), func(c *fiber.Ctx) error { return svc.VerifyAchievementService(c) })
-	r.Post("/:id/reject", middleware.RequireRole("Dosen Wali"), func(c *fiber.Ctx) error { return svc.RejectAchievementService(c) })
+	achievement.Post("/", middleware.RequirePermission("achievement:create"), svc.CreateAchievementService,)
+
+	achievement.Put("/:id", middleware.RequirePermission("achievement:update"), svc.UpdateAchievementService,)
+
+	achievement.Delete("/:id", middleware.RequirePermission("achievement:delete"), svc.DeleteAchievementService,)
+
+	achievement.Post("/:id/submit", middleware.RequirePermission("achievement:update"), svc.SubmitAchievementService,)
+
+	achievement.Post("/:id/verify", middleware.RequirePermission("achievement:verify"), svc.VerifyAchievementService,)
+
+	achievement.Post("/:id/reject", middleware.RequirePermission("achievement:verify"), svc.RejectAchievementService,)
+
+	achievement.Get("/:id/history", middleware.RequirePermission("achievement:read"), svc.GetHistoryService,)
+
+	achievement.Post("/:id/attachments", middleware.RequirePermission("achievement:update"), svc.UploadAttachmentsService,)
 }

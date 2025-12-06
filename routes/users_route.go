@@ -9,7 +9,7 @@ import (
 )
 
 func UserRoutes(app *fiber.App, db *sql.DB) {
-    user := app.Group("/api/v1/users", middleware.AuthRequired(), middleware.RequireRole("Admin"))
+    user := app.Group("/api/v1/users", middleware.AuthRequired(), middleware.RequirePermission("user:manage"))
 
     user.Get("/", func(c *fiber.Ctx) error {
         return service.GetAllUsersService(c, db)

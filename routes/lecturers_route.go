@@ -9,7 +9,7 @@ import (
 )
 
 func LecturerRoutes(app *fiber.App, db *sql.DB) {
-    lecturer := app.Group("/api/v1/lecturers", middleware.AuthRequired(), middleware.RequireRole("Admin"))
+    lecturer := app.Group("/api/v1/lecturers", middleware.AuthRequired(), middleware.RequirePermission("user:manage"))
 
     lecturer.Get("/", func(c *fiber.Ctx) error {
         return service.GetAllLecturersService(c, db)
