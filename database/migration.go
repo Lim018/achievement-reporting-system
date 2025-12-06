@@ -70,7 +70,7 @@ func RunMigrations(db *sql.DB) error {
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
 			mongo_achievement_id VARCHAR(24) NOT NULL,
-			status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'submitted', 'verified', 'rejected')),
+			status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'submitted', 'verified', 'rejected', 'deleted')),
 			submitted_at TIMESTAMP,
 			verified_at TIMESTAMP,
 			verified_by UUID REFERENCES users(id) ON DELETE SET NULL,

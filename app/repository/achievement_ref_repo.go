@@ -111,8 +111,12 @@ func (r *AchievementRefRepo) RejectReference(refID, verifierID, note string) err
 	return err
 }
 
-func (r *AchievementRefRepo) DeleteReference(refID string) error {
-	_, err := r.PG.Exec(`DELETE FROM achievement_references WHERE id = $1`, refID)
+func (r *AchievementRefRepo) SoftDeleteReference(refID string) error {
+	_, err := r.PG.Exec(`
+		UPDATE achievement_references
+		SET status = 'deleted', updated_at = NOW()
+		WHERE id = $1
+	`, refID)
 	return err
 }
 

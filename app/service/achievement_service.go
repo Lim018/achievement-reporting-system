@@ -159,15 +159,23 @@ func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 
 func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 	userID := getUserID(c)
-	refID := c.Params("id")
 	if userID == "" {
-		return c.Status(401).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
+		return c.Status(401).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Unauthorized",
+		})
 	}
+
+	refID := c.Params("id")
 
 	refs, err := s.PGRepo.ListForStudent(userID)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengecek reference"})
+		return c.Status(500).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal mengecek reference",
+		})
 	}
+
 	var target *model.AchievementDetailResponse
 	for _, r := range refs {
 		if r.ReferenceID == refID {
@@ -175,21 +183,33 @@ func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 			break
 		}
 	}
+
 	if target == nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
-	}
-	if target.ReferenceStatus != "draft" && target.ReferenceStatus != "rejected" {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Hanya draft/rejected yang dapat dihapus"})
-	}
-
-	if err := s.Mongo.DeleteByHexID(context.Background(), target.MongoID); err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menghapus data MongoDB"})
-	}
-	if err := s.PGRepo.DeleteReference(refID); err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menghapus reference"})
+		return c.Status(404).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Reference tidak ditemukan atau bukan milik Anda",
+		})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Achievement dihapus"})
+	if target.ReferenceStatus != "draft" {
+		return c.Status(400).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Hanya achievement dengan status 'draft' yang dapat dihapus",
+		})
+	}
+
+	err = s.PGRepo.UpdateReferenceStatus(refID, "deleted")
+	if err != nil {
+		return c.Status(500).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal melakukan delete",
+		})
+	}
+
+	return c.JSON(model.APIResponse{
+		Status:  "success",
+		Message: "Achievement berhasil dihapus",
+	})
 }
 
 func (s *AchievementService) SubmitAchievementService(c *fiber.Ctx) error {
@@ -320,6 +340,15 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 		&updatedAt,
 	)
 
+	if status == "deleted" {
+		if role != "Admin" {
+			return c.Status(403).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Data sudah dihapus",
+			})
+		}
+	}
+
 	if err != nil {
 		return c.Status(404).JSON(model.APIResponse{
 			Status: "error",
@@ -412,51 +441,14 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 		}
 		defer rows.Close()
 
-		var out []model.AchievementDetailResponse
-		for rows.Next() {
-			var item model.AchievementDetailResponse
-			var submittedAt, verifiedAt sql.NullTime
-			var verifiedBy, rejectionNote sql.NullString
-			var mongoHex string
-
-			err := rows.Scan(&item.ReferenceID, &mongoHex, &item.ReferenceStatus, &submittedAt, &verifiedAt, &verifiedBy, &rejectionNote, &item.CreatedAtRef, &item.UpdatedAtRef)
-			if err != nil {
-				return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca rows"})
-			}
-
-			item.MongoID = mongoHex
-
-			doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
-			if err == nil {
-				item.Achievement = *doc
-			}
-
-			if submittedAt.Valid {
-				item.SubmittedAt = &submittedAt.Time
-			}
-			if verifiedAt.Valid {
-				item.VerifiedAt = &verifiedAt.Time
-			}
-			if verifiedBy.Valid {
-				v := verifiedBy.String
-				item.VerifiedBy = &v
-			}
-			if rejectionNote.Valid {
-				v := rejectionNote.String
-				item.RejectionNote = &v
-			}
-
-			out = append(out, item)
-		}
-
-		return c.JSON(model.APIResponse{Status: "success", Data: out})
+		return s.attachMongoDocsAndReturn(c, rows)
 
 	case "Dosen Wali":
 		rows, err := s.PG.Query(`
 			SELECT ar.id, ar.mongo_achievement_id, ar.status, ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note, ar.created_at, ar.updated_at
 			FROM achievement_references ar
 			JOIN students s ON ar.student_id = s.id
-			WHERE s.advisor_id = $1
+			WHERE s.advisor_id = $1 AND ar.status != 'deleted'
 			ORDER BY ar.created_at DESC
 		`, userID)
 		if err != nil {
@@ -464,52 +456,21 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 		}
 		defer rows.Close()
 
-		out := []model.AchievementDetailResponse{}
-		for rows.Next() {
-			var item model.AchievementDetailResponse
-			var submittedAt, verifiedAt sql.NullTime
-			var verifiedBy, rejectionNote sql.NullString
-			var mongoHex string
-			err := rows.Scan(&item.ReferenceID, &mongoHex, &item.ReferenceStatus, &submittedAt, &verifiedAt, &verifiedBy, &rejectionNote, &item.CreatedAtRef, &item.UpdatedAtRef)
-			if err != nil {
-				return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca rows"})
-			}
-			item.MongoID = mongoHex
-			doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
-			if err == nil {
-				item.Achievement = *doc
-			}
-			if submittedAt.Valid {
-				item.SubmittedAt = &submittedAt.Time
-			}
-			if verifiedAt.Valid {
-				item.VerifiedAt = &verifiedAt.Time
-			}
-			if verifiedBy.Valid {
-				sv := verifiedBy.String
-				item.VerifiedBy = &sv
-			}
-			if rejectionNote.Valid {
-				r := rejectionNote.String
-				item.RejectionNote = &r
-			}
-			out = append(out, item)
-		}
-		return c.JSON(model.APIResponse{Status: "success", Data: out})
+		return s.attachMongoDocsAndReturn(c, rows)
 
 	default:
-		out, err := s.PGRepo.ListForStudent(userID)
+		rows, err := s.PG.Query(`
+			SELECT id, mongo_achievement_id, status, submitted_at, verified_at, verified_by, rejection_note, created_at, updated_at
+			FROM achievement_references
+			WHERE student_id = $1 AND status != 'deleted'
+			ORDER BY created_at DESC
+		`, userID)
 		if err != nil {
 			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data mahasiswa"})
 		}
+		defer rows.Close()
 
-		for i := range out {
-			doc, err := s.Mongo.FindByHexID(context.Background(), out[i].MongoID)
-			if err == nil {
-				out[i].Achievement = *doc
-			}
-		}
-		return c.JSON(model.APIResponse{Status: "success", Data: out})
+		return s.attachMongoDocsAndReturn(c, rows)
 	}
 }
 
@@ -593,4 +554,56 @@ func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(model.APIResponse{Status: "success", Message: "Attachment berhasil ditambahkan"})
+}
+
+func (s *AchievementService) attachMongoDocsAndReturn(c *fiber.Ctx, rows *sql.Rows) error {
+	var list []model.AchievementDetailResponse
+
+	for rows.Next() {
+		var item model.AchievementDetailResponse
+		var submittedAt, verifiedAt sql.NullTime
+		var verifiedBy, rejectionNote sql.NullString
+		var mongoHex string
+
+		err := rows.Scan(
+			&item.ReferenceID,
+			&mongoHex,
+			&item.ReferenceStatus,
+			&submittedAt,
+			&verifiedAt,
+			&verifiedBy,
+			&rejectionNote,
+			&item.CreatedAtRef,
+			&item.UpdatedAtRef,
+		)
+		if err != nil {
+			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca data"})
+		}
+
+		item.MongoID = mongoHex
+
+		if submittedAt.Valid {
+			item.SubmittedAt = &submittedAt.Time
+		}
+		if verifiedAt.Valid {
+			item.VerifiedAt = &verifiedAt.Time
+		}
+		if verifiedBy.Valid {
+			sv := verifiedBy.String
+			item.VerifiedBy = &sv
+		}
+		if rejectionNote.Valid {
+			r := rejectionNote.String
+			item.RejectionNote = &r
+		}
+
+		doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
+		if err == nil {
+			item.Achievement = *doc
+		}
+
+		list = append(list, item)
+	}
+
+	return c.JSON(model.APIResponse{Status: "success", Data: list})
 }
