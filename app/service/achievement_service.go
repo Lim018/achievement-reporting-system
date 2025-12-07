@@ -310,13 +310,96 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 }
 
 func (s *AchievementService) GetHistoryService(c *fiber.Ctx) error {
-	refID := c.Params("id")
-	ref, err := s.PGRepo.GetReference(refID)
-	if err != nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Not found"})
-	}
+    refID := c.Params("id")
+    role := getUserRole(c)
+    userID := getUserID(c)
 
-	return c.JSON(model.APIResponse{Status: "success", Data: ref})
+    ref, err := s.PGRepo.GetReference(refID)
+    if err != nil {
+        return c.Status(404).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Reference tidak ditemukan",
+        })
+    }
+
+    if role == "Student" && ref.StudentID != userID {
+        return c.Status(403).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Tidak boleh melihat history milik orang lain",
+        })
+    }
+
+    if role == "Dosen Wali" {
+        refAdv, err := s.PGRepo.GetReferenceWithAdvisor(refID, userID)
+        if err != nil || refAdv.AdvisorID != userID {
+            return c.Status(403).JSON(model.APIResponse{
+                Status: "error",
+                Error:  "Anda bukan dosen wali mahasiswa ini",
+            })
+        }
+    }
+
+    timeline := []fiber.Map{}
+
+    timeline = append(timeline, fiber.Map{
+        "status":    "draft",
+        "timestamp": ref.CreatedAtRef,
+        "actor":     ref.StudentID,
+        "note":      nil,
+    })
+
+    if ref.SubmittedAt != nil {
+        timeline = append(timeline, fiber.Map{
+            "status":    "submitted",
+            "timestamp": ref.SubmittedAt,
+            "actor":     ref.StudentID,
+            "note":      nil,
+        })
+    }
+
+    if ref.VerifiedAt != nil && ref.ReferenceStatus == "verified" {
+        timeline = append(timeline, fiber.Map{
+            "status":    "verified",
+            "timestamp": ref.VerifiedAt,
+            "actor":     ref.VerifiedBy,
+            "note":      nil,
+        })
+    }
+
+    if ref.VerifiedAt != nil && ref.ReferenceStatus == "rejected" {
+        timeline = append(timeline, fiber.Map{
+            "status":    "rejected",
+            "timestamp": ref.VerifiedAt,
+            "actor":     ref.VerifiedBy,
+            "note":      ref.RejectionNote,
+        })
+    }
+
+    if ref.ReferenceStatus == "deleted" {
+        timeline = append(timeline, fiber.Map{
+            "status":    "deleted",
+            "timestamp": ref.UpdatedAtRef,
+            "actor":     ref.StudentID,
+            "note":      "Soft delete oleh mahasiswa",
+        })
+    }
+
+    return c.JSON(model.APIResponse{
+        Status: "success",
+        Data: fiber.Map{
+            "reference_id":  ref.ReferenceID,
+            "mongo_id":      ref.MongoID,
+            "student_id":    ref.StudentID,
+            "status":        ref.ReferenceStatus,
+            "timeline":      timeline,
+            "created_at":    ref.CreatedAtRef,
+            "submitted_at":  ref.SubmittedAt,
+            "verified_at":   ref.VerifiedAt,
+            "verified_by":   ref.VerifiedBy,
+            "rejection_note": ref.RejectionNote,
+            "updated_at":    ref.UpdatedAtRef,
+        },
+    })
 }
 
 func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
