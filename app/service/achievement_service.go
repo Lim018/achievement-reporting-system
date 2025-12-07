@@ -231,39 +231,49 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 	role := getUserRole(c)
 	userID := getUserID(c)
 
-	var ref *model.AchievementDetailResponse
-	var err error
-
-	switch role {
-	case "Admin":
-		ref, err = s.PGRepo.GetReference(refID)
-
-	case "Dosen Wali":
-		ref, err = s.PGRepo.GetReferenceWithAdvisor(refID, userID)
-
-	default:
-		ref, err = s.PGRepo.GetReference(refID)
-		if err == nil && ref.StudentID != userID {
-			return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Tidak boleh melihat data orang lain"})
-		}
+	ref, err := s.PGRepo.GetReferenceDetail(refID)
+	if err != nil {
+		return c.Status(404).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Reference tidak ditemukan",
+		})
 	}
 
-	if err != nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
+	if role == "Mahasiswa" && ref.StudentID != userID {
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Tidak boleh melihat data milik orang lain",
+		})
+	}
+
+	if role == "Dosen Wali" && ref.AdvisorID != userID {
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Anda bukan dosen wali mahasiswa ini",
+		})
 	}
 
 	if ref.ReferenceStatus == "deleted" && role != "Admin" {
-		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Data telah dihapus"})
+		return c.Status(403).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Data telah dihapus",
+		})
 	}
 
 	ach, err := s.Mongo.FindByHexID(context.Background(), ref.MongoID)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal ambil data MongoDB"})
+		return c.Status(500).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal mengambil data MongoDB",
+		})
 	}
 
 	ref.Achievement = *ach
 
-	return c.JSON(model.APIResponse{Status: "success", Data: ref})
+	return c.JSON(model.APIResponse{
+		Status: "success",
+		Data:   ref,
+	})
 }
 
 func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {

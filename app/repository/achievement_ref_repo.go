@@ -75,6 +75,60 @@ func (r *AchievementRefRepo) GetReference(refID string) (*model.AchievementDetai
 	return &out, nil
 }
 
+func (r *AchievementRefRepo) GetReferenceDetail(refID string) (*model.AchievementDetailResponse, error) {
+	var out model.AchievementDetailResponse
+	var submittedAt, verifiedAt sql.NullTime
+	var verifiedBy, rejectionNote sql.NullString
+	var mongoHex, studentID, advisorID string
+
+	err := r.PG.QueryRow(`
+        SELECT ar.id, ar.student_id, ar.mongo_achievement_id, ar.status,
+               ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note,
+               ar.created_at, ar.updated_at,
+               s.advisor_id
+        FROM achievement_references ar
+        JOIN students s ON ar.student_id = s.id
+        WHERE ar.id = $1
+    `, refID).Scan(
+		&out.ReferenceID,
+		&studentID,
+		&mongoHex,
+		&out.ReferenceStatus,
+		&submittedAt,
+		&verifiedAt,
+		&verifiedBy,
+		&rejectionNote,
+		&out.CreatedAtRef,
+		&out.UpdatedAtRef,
+		&advisorID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	out.StudentID = studentID
+	out.MongoID = mongoHex
+	out.AdvisorID = advisorID
+
+	if submittedAt.Valid {
+		out.SubmittedAt = &submittedAt.Time
+	}
+	if verifiedAt.Valid {
+		out.VerifiedAt = &verifiedAt.Time
+	}
+	if verifiedBy.Valid {
+		s := verifiedBy.String
+		out.VerifiedBy = &s
+	}
+	if rejectionNote.Valid {
+		s := rejectionNote.String
+		out.RejectionNote = &s
+	}
+
+	return &out, nil
+}
+
 func (r *AchievementRefRepo) GetReferenceWithAdvisor(refID, advisorID string) (*model.AchievementDetailResponse, error) {
 	var out model.AchievementDetailResponse
 	var submittedAt, verifiedAt sql.NullTime
