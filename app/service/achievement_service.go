@@ -68,7 +68,7 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 		Title:           req.Title,
 		Description:     req.Description,
 		Tags:            req.Tags,
-		Points:          req.Points,
+		Points:          0,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -188,20 +188,76 @@ func (s *AchievementService) SubmitAchievementService(c *fiber.Ctx) error {
 }
 
 func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
-	advisorID := getUserID(c)
-	refID := c.Params("id")
+    verifierID := getUserID(c)
+    role := getUserRole(c)
+    refID := c.Params("id")
 
-	ref, err := s.PGRepo.GetReferenceWithAdvisor(refID, advisorID)
-	if err != nil || ref.AdvisorID != advisorID {
-		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Anda bukan dosen wali mahasiswa ini"})
-	}
+    if role != "Dosen Wali" {
+        return c.Status(403).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Akses ditolak",
+        })
+    }
 
-	err = s.PGRepo.VerifyReference(refID, advisorID)
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal verifikasi"})
-	}
+    ref, err := s.PGRepo.GetReferenceWithAdvisor(refID, verifierID)
+    if err != nil || ref.AdvisorID != verifierID {
+        return c.Status(403).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Anda bukan dosen wali mahasiswa ini",
+        })
+    }
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "verified"})
+    if ref.ReferenceStatus != "submitted" {
+        return c.Status(400).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Prestasi hanya bisa diverifikasi setelah disubmit",
+        })
+    }
+
+    var req struct {
+        Points int `json:"points"`
+    }
+
+    if err := c.BodyParser(&req); err != nil {
+        return c.Status(400).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Body request tidak valid",
+        })
+    }
+
+    if req.Points <= 0 {
+        return c.Status(400).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Points harus lebih dari 0",
+        })
+    }
+
+    err = s.Mongo.UpdateByHexID(context.Background(), ref.MongoID, bson.M{
+        "points":   req.Points,
+        "updatedAt": time.Now(),
+    })
+    if err != nil {
+        return c.Status(500).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Gagal update points di MongoDB",
+        })
+    }
+
+    err = s.PGRepo.VerifyReference(refID, verifierID)
+    if err != nil {
+        return c.Status(500).JSON(model.APIResponse{
+            Status: "error",
+            Error:  "Gagal verifikasi",
+        })
+    }
+
+    return c.JSON(model.APIResponse{
+        Status:  "success",
+        Message: "Verified & points updated",
+        Data: fiber.Map{
+            "points": req.Points,
+        },
+    })
 }
 
 func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
