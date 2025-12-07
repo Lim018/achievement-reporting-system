@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"os"
 	"time"
 
 	"go-fiber/app/model"
@@ -34,10 +36,8 @@ func getUserID(c *fiber.Ctx) string {
 	if v == nil {
 		return ""
 	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
+	s, _ := v.(string)
+	return s
 }
 
 func getUserRole(c *fiber.Ctx) string {
@@ -45,16 +45,14 @@ func getUserRole(c *fiber.Ctx) string {
 	if v == nil {
 		return ""
 	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
+	s, _ := v.(string)
+	return s
 }
 
 func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	studentID := getUserID(c)
 	if studentID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
+		return c.Status(401).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
 	}
 
 	var req model.CreateAchievementRequest
@@ -63,6 +61,7 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	}
 
 	now := time.Now()
+
 	ach := model.Achievement{
 		StudentID:       studentID,
 		AchievementType: req.AchievementType,
@@ -73,6 +72,7 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+
 	if req.Details != nil {
 		ach.Details.CustomFields = req.Details
 	}
@@ -80,13 +80,13 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	ctx := context.Background()
 	mongoHex, err := s.Mongo.Create(ctx, ach)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menyimpan achievement ke MongoDB"})
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membuat dokumen MongoDB"})
 	}
 
 	refID, err := s.PGRepo.CreateReference(studentID, mongoHex)
 	if err != nil {
 		_ = s.Mongo.DeleteByHexID(ctx, mongoHex)
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menyimpan reference achievement"})
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membuat reference"})
 	}
 
 	return c.JSON(model.APIResponse{
@@ -101,31 +101,19 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 	userID := getUserID(c)
 	refID := c.Params("id")
-	if userID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
+
+	ref, err := s.PGRepo.GetReference(refID)
+	if err != nil || ref.StudentID != userID {
+		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
 	}
 
-	refs, err := s.PGRepo.ListForStudent(userID)
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengecek reference"})
-	}
-	var target *model.AchievementDetailResponse
-	for _, r := range refs {
-		if r.ReferenceID == refID {
-			target = &r
-			break
-		}
-	}
-	if target == nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan atau bukan milik Anda"})
-	}
-	if target.ReferenceStatus != "draft" && target.ReferenceStatus != "rejected" {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Hanya draft atau rejected yang bisa diupdate"})
+	if ref.ReferenceStatus != "draft" && ref.ReferenceStatus != "rejected" {
+		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Hanya draft/rejected yang bisa update"})
 	}
 
 	var req model.UpdateAchievementRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Request body tidak valid"})
+		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Invalid body"})
 	}
 
 	update := bson.M{}
@@ -135,178 +123,107 @@ func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 	if req.Description != nil {
 		update["description"] = *req.Description
 	}
-	if req.Details != nil {
-		update["details"] = req.Details
-	}
 	if req.Tags != nil {
 		update["tags"] = req.Tags
+	}
+	if req.Details != nil {
+		update["details"] = req.Details
 	}
 	if req.Points != nil {
 		update["points"] = *req.Points
 	}
 
 	if len(update) == 0 {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Tidak ada field untuk diupdate"})
+		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Tidak ada perubahan"})
 	}
 
-	err = s.Mongo.UpdateByHexID(context.Background(), target.MongoID, update)
+	err = s.Mongo.UpdateByHexID(context.Background(), ref.MongoID, update)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengupdate achievement di MongoDB"})
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal update MongoDB"})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Achievement berhasil diperbarui"})
+	return c.JSON(model.APIResponse{Status: "success", Message: "Updated"})
 }
 
 func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 	userID := getUserID(c)
-	if userID == "" {
-		return c.Status(401).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Unauthorized",
-		})
-	}
-
 	refID := c.Params("id")
 
-	refs, err := s.PGRepo.ListForStudent(userID)
+	ref, err := s.PGRepo.GetReference(refID)
+	if err != nil || ref.StudentID != userID {
+		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
+	}
+
+	if ref.ReferenceStatus != "draft" {
+		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Hanya draft yang boleh dihapus"})
+	}
+
+	err = s.PGRepo.SoftDeleteReference(refID)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengecek reference",
-		})
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menghapus"})
 	}
 
-	var target *model.AchievementDetailResponse
-	for _, r := range refs {
-		if r.ReferenceID == refID {
-			target = &r
-			break
-		}
-	}
-
-	if target == nil {
-		return c.Status(404).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Reference tidak ditemukan atau bukan milik Anda",
-		})
-	}
-
-	if target.ReferenceStatus != "draft" {
-		return c.Status(400).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Hanya achievement dengan status 'draft' yang dapat dihapus",
-		})
-	}
-
-	err = s.PGRepo.UpdateReferenceStatus(refID, "deleted")
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal melakukan delete",
-		})
-	}
-
-	return c.JSON(model.APIResponse{
-		Status:  "success",
-		Message: "Achievement berhasil dihapus",
-	})
+	return c.JSON(model.APIResponse{Status: "success", Message: "deleted"})
 }
 
 func (s *AchievementService) SubmitAchievementService(c *fiber.Ctx) error {
 	userID := getUserID(c)
 	refID := c.Params("id")
-	if userID == "" {
-		return c.Status(401).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
-	}
 
-	refs, err := s.PGRepo.ListForStudent(userID)
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengecek reference"})
-	}
-	var target *model.AchievementDetailResponse
-	for _, r := range refs {
-		if r.ReferenceID == refID {
-			target = &r
-			break
-		}
-	}
-	if target == nil {
+	ref, err := s.PGRepo.GetReference(refID)
+	if err != nil || ref.StudentID != userID {
 		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
 	}
-	if target.ReferenceStatus != "draft" && target.ReferenceStatus != "rejected" {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Hanya draft atau rejected yang dapat disubmit"})
+
+	if ref.ReferenceStatus != "draft" && ref.ReferenceStatus != "rejected" {
+		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Tidak bisa disubmit"})
 	}
 
-	if err := s.PGRepo.SubmitReference(refID); err != nil {
+	err = s.PGRepo.SubmitReference(refID)
+	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal submit"})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Achievement berhasil disubmit"})
+	return c.JSON(model.APIResponse{Status: "success", Message: "submitted"})
 }
 
 func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
-	verifierID := getUserID(c)
-	if verifierID == "" || getUserRole(c) != "Dosen Wali" {
-		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Akses ditolak"})
-	}
+	advisorID := getUserID(c)
 	refID := c.Params("id")
 
-	var studentID string
-	err := s.PG.QueryRow(`
-		SELECT ar.student_id
-		FROM achievement_references ar
-		JOIN students s ON ar.student_id = s.id
-		WHERE ar.id = $1 AND s.advisor_id = $2
-	`, refID, verifierID).Scan(&studentID)
-
-	if err != nil {
-		return c.Status(403).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Anda tidak memiliki akses terhadap achievement ini",
-		})
+	ref, err := s.PGRepo.GetReferenceWithAdvisor(refID, advisorID)
+	if err != nil || ref.AdvisorID != advisorID {
+		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Anda bukan dosen wali mahasiswa ini"})
 	}
 
-	if err := s.PGRepo.VerifyReference(refID, verifierID, ""); err != nil {
+	err = s.PGRepo.VerifyReference(refID, advisorID)
+	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal verifikasi"})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Achievement diverifikasi"})
+	return c.JSON(model.APIResponse{Status: "success", Message: "verified"})
 }
 
 func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
-	verifierID := getUserID(c)
-	if verifierID == "" || getUserRole(c) != "Dosen Wali" {
-		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Akses ditolak"})
-	}
+	advisorID := getUserID(c)
 	refID := c.Params("id")
 
-	var studentID string
-	err := s.PG.QueryRow(`
-		SELECT ar.student_id
-		FROM achievement_references ar
-		JOIN students s ON ar.student_id = s.id
-		WHERE ar.id = $1 AND s.advisor_id = $2
-	`, refID, verifierID).Scan(&studentID)
-
-	if err != nil {
-		return c.Status(403).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Anda tidak memiliki akses terhadap achievement ini",
-		})
+	ref, err := s.PGRepo.GetReferenceWithAdvisor(refID, advisorID)
+	if err != nil || ref.AdvisorID != advisorID {
+		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Anda bukan dosen wali mahasiswa ini"})
 	}
 
 	var body struct {
 		Note string `json:"note"`
 	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Request body tidak valid"})
-	}
+	_ = c.BodyParser(&body)
 
-	if err := s.PGRepo.RejectReference(refID, verifierID, body.Note); err != nil {
+	err = s.PGRepo.RejectReference(refID, advisorID, body.Note)
+	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal reject"})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Achievement ditolak"})
+	return c.JSON(model.APIResponse{Status: "success", Message: "rejected"})
 }
 
 func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
@@ -314,296 +231,152 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 	role := getUserRole(c)
 	userID := getUserID(c)
 
-	row := s.PG.QueryRow(`
-		SELECT id, student_id, mongo_achievement_id, status,
-		       submitted_at, verified_at, verified_by, rejection_note,
-		       created_at, updated_at
-		FROM achievement_references
-		WHERE id = $1
-	`, refID)
-
-	var studentID, mongoHex, status string
-	var submittedAt, verifiedAt sql.NullTime
-	var verifiedBy, rejectionNote sql.NullString
-	var createdAt, updatedAt time.Time
-
-	err := row.Scan(
-		&refID,
-		&studentID,
-		&mongoHex,
-		&status,
-		&submittedAt,
-		&verifiedAt,
-		&verifiedBy,
-		&rejectionNote,
-		&createdAt,
-		&updatedAt,
-	)
-
-	if status == "deleted" {
-		if role != "Admin" {
-			return c.Status(403).JSON(model.APIResponse{
-				Status: "error",
-				Error:  "Data sudah dihapus",
-			})
-		}
-	}
-
-	if err != nil {
-		return c.Status(404).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Reference tidak ditemukan",
-		})
-	}
+	var ref *model.AchievementDetailResponse
+	var err error
 
 	switch role {
-
 	case "Admin":
-		break
+		ref, err = s.PGRepo.GetReference(refID)
 
 	case "Dosen Wali":
-		var count int
-		err := s.PG.QueryRow(`
-			SELECT COUNT(*) FROM students
-			WHERE id = $1 AND advisor_id = $2
-		`, studentID, userID).Scan(&count)
-
-		if err != nil || count == 0 {
-			return c.Status(403).JSON(model.APIResponse{
-				Status: "error",
-				Error:  "Akses ditolak: bukan mahasiswa bimbingan",
-			})
-		}
-
-	case "Mahasiswa":
-		if studentID != userID {
-			return c.Status(403).JSON(model.APIResponse{
-				Status: "error",
-				Error:  "Akses ditolak: bukan milik Anda",
-			})
-		}
+		ref, err = s.PGRepo.GetReferenceWithAdvisor(refID, userID)
 
 	default:
-		return c.Status(403).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Role tidak dikenali",
-		})
+		ref, err = s.PGRepo.GetReference(refID)
+		if err == nil && ref.StudentID != userID {
+			return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Tidak boleh melihat data orang lain"})
+		}
 	}
 
-	achDoc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengambil data achievement dari MongoDB",
-		})
+		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
 	}
 
-	resp := model.AchievementDetailResponse{
-		ReferenceID:     refID,
-		MongoID:         mongoHex,
-		Achievement:     *achDoc,
-		ReferenceStatus: status,
-		CreatedAtRef:    createdAt,
-		UpdatedAtRef:    updatedAt,
+	if ref.ReferenceStatus == "deleted" && role != "Admin" {
+		return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Data telah dihapus"})
 	}
 
-	if submittedAt.Valid {
-		resp.SubmittedAt = &submittedAt.Time
-	}
-	if verifiedAt.Valid {
-		resp.VerifiedAt = &verifiedAt.Time
-	}
-	if verifiedBy.Valid {
-		s := verifiedBy.String
-		resp.VerifiedBy = &s
-	}
-	if rejectionNote.Valid {
-		s := rejectionNote.String
-		resp.RejectionNote = &s
+	ach, err := s.Mongo.FindByHexID(context.Background(), ref.MongoID)
+	if err != nil {
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal ambil data MongoDB"})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Data: resp})
+	ref.Achievement = *ach
+
+	return c.JSON(model.APIResponse{Status: "success", Data: ref})
 }
 
 func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 	role := getUserRole(c)
 	userID := getUserID(c)
 
-	switch role {
-	case "Admin":
-		rows, err := s.PG.Query(`
-			SELECT id, mongo_achievement_id, status, submitted_at, verified_at, verified_by, rejection_note, created_at, updated_at
-			FROM achievement_references
-			ORDER BY created_at DESC
-		`)
-		if err != nil {
-			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data"})
-		}
-		defer rows.Close()
+	var list []model.AchievementDetailResponse
+	var err error
 
-		return s.attachMongoDocsAndReturn(c, rows)
+	switch role {
+
+	case "Admin":
+		list, err = s.PGRepo.ListForAdmin()
 
 	case "Dosen Wali":
-		rows, err := s.PG.Query(`
-			SELECT ar.id, ar.mongo_achievement_id, ar.status, ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note, ar.created_at, ar.updated_at
-			FROM achievement_references ar
-			JOIN students s ON ar.student_id = s.id
-			WHERE s.advisor_id = $1 AND ar.status != 'deleted'
-			ORDER BY ar.created_at DESC
-		`, userID)
-		if err != nil {
-			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data"})
-		}
-		defer rows.Close()
-
-		return s.attachMongoDocsAndReturn(c, rows)
+		list, err = s.PGRepo.ListForAdvisor(userID)
 
 	default:
-		rows, err := s.PG.Query(`
-			SELECT id, mongo_achievement_id, status, submitted_at, verified_at, verified_by, rejection_note, created_at, updated_at
-			FROM achievement_references
-			WHERE student_id = $1 AND status != 'deleted'
-			ORDER BY created_at DESC
-		`, userID)
-		if err != nil {
-			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data mahasiswa"})
-		}
-		defer rows.Close()
-
-		return s.attachMongoDocsAndReturn(c, rows)
+		list, err = s.PGRepo.ListForStudent(userID)
 	}
+
+	if err != nil {
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data"})
+	}
+
+	for i := range list {
+		doc, err := s.Mongo.FindByHexID(context.Background(), list[i].MongoID)
+		if err == nil {
+			list[i].Achievement = *doc
+		}
+	}
+
+	return c.JSON(model.APIResponse{Status: "success", Data: list})
 }
 
 func (s *AchievementService) GetHistoryService(c *fiber.Ctx) error {
 	refID := c.Params("id")
-	row := s.PG.QueryRow(`
-		SELECT status, submitted_at, verified_at, verified_by, rejection_note, created_at, updated_at
-		FROM achievement_references WHERE id = $1
-	`, refID)
-
-	var status string
-	var submittedAt, verifiedAt sql.NullTime
-	var verifiedBy sql.NullString
-	var rejectionNote sql.NullString
-	var createdAt, updatedAt time.Time
-
-	if err := row.Scan(&status, &submittedAt, &verifiedAt, &verifiedBy, &rejectionNote, &createdAt, &updatedAt); err != nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
+	ref, err := s.PGRepo.GetReference(refID)
+	if err != nil {
+		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Not found"})
 	}
 
-	history := fiber.Map{
-		"status":        status,
-		"submitted_at":  nil,
-		"verified_at":   nil,
-		"verified_by":   nil,
-		"rejection_note": nil,
-		"created_at":    createdAt,
-		"updated_at":    updatedAt,
-	}
-	if submittedAt.Valid {
-		history["submitted_at"] = submittedAt.Time
-	}
-	if verifiedAt.Valid {
-		history["verified_at"] = verifiedAt.Time
-	}
-	if verifiedBy.Valid {
-		history["verified_by"] = verifiedBy.String
-	}
-	if rejectionNote.Valid {
-		history["rejection_note"] = rejectionNote.String
-	}
-
-	return c.JSON(model.APIResponse{Status: "success", Data: history})
+	return c.JSON(model.APIResponse{Status: "success", Data: ref})
 }
 
 func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
 	userID := getUserID(c)
-	if userID == "" {
-		return c.Status(401).JSON(model.APIResponse{Status: "error", Error: "Unauthorized"})
-	}
 	refID := c.Params("id")
 
-	out, err := s.PGRepo.ListForStudent(userID)
+	ref, err := s.PGRepo.GetReference(refID)
+	if err != nil || ref.StudentID != userID {
+		return c.Status(404).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Reference tidak ditemukan",
+		})
+	}
+
+	form, err := c.MultipartForm()
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengecek reference"})
-	}
-	var target *model.AchievementDetailResponse
-	for _, r := range out {
-		if r.ReferenceID == refID {
-			target = &r
-			break
-		}
-	}
-	if target == nil {
-		return c.Status(404).JSON(model.APIResponse{Status: "error", Error: "Reference tidak ditemukan"})
+		return c.Status(400).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Form-data tidak valid",
+		})
 	}
 
-	var payload struct {
-		Attachments []model.Attachment `json:"attachments" validate:"required"`
-	}
-	if err := c.BodyParser(&payload); err != nil {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Body tidak valid"})
-	}
-
-	if len(payload.Attachments) == 0 {
-		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Tidak ada attachment"})
+	files := form.File["files"]
+	if len(files) == 0 {
+		return c.Status(400).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "File tidak ditemukan",
+		})
 	}
 
-	if err := s.Mongo.AddAttachments(context.Background(), target.MongoID, payload.Attachments); err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menambahkan attachment"})
-	}
+	saveDir := "uploads/achievements/" + refID
+	_ = os.MkdirAll(saveDir, os.ModePerm)
 
-	return c.JSON(model.APIResponse{Status: "success", Message: "Attachment berhasil ditambahkan"})
-}
+	var attachments []model.Attachment
+	var savedFiles []string 
 
-func (s *AchievementService) attachMongoDocsAndReturn(c *fiber.Ctx, rows *sql.Rows) error {
-	var list []model.AchievementDetailResponse
+	for _, file := range files {
+		filename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), file.Filename)
+		filePath := saveDir + "/" + filename
 
-	for rows.Next() {
-		var item model.AchievementDetailResponse
-		var submittedAt, verifiedAt sql.NullTime
-		var verifiedBy, rejectionNote sql.NullString
-		var mongoHex string
-
-		err := rows.Scan(
-			&item.ReferenceID,
-			&mongoHex,
-			&item.ReferenceStatus,
-			&submittedAt,
-			&verifiedAt,
-			&verifiedBy,
-			&rejectionNote,
-			&item.CreatedAtRef,
-			&item.UpdatedAtRef,
-		)
-		if err != nil {
-			return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal membaca data"})
+		if err := c.SaveFile(file, filePath); err != nil {
+			return c.Status(500).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Gagal menyimpan file",
+			})
 		}
 
-		item.MongoID = mongoHex
+		savedFiles = append(savedFiles, filePath)
 
-		if submittedAt.Valid {
-			item.SubmittedAt = &submittedAt.Time
-		}
-		if verifiedAt.Valid {
-			item.VerifiedAt = &verifiedAt.Time
-		}
-		if verifiedBy.Valid {
-			sv := verifiedBy.String
-			item.VerifiedBy = &sv
-		}
-		if rejectionNote.Valid {
-			r := rejectionNote.String
-			item.RejectionNote = &r
-		}
-
-		doc, err := s.Mongo.FindByHexID(context.Background(), mongoHex)
-		if err == nil {
-			item.Achievement = *doc
-		}
-
-		list = append(list, item)
+		attachments = append(attachments, model.Attachment{
+			FileName:   file.Filename,
+			FileUrl:    filePath,
+			FileType:   file.Header.Get("Content-Type"),
+			UploadedAt: time.Now(),
+		})
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Data: list})
+	err = s.Mongo.AddAttachments(context.Background(), ref.MongoID, attachments)
+	if err != nil {
+		for _, f := range savedFiles {
+			_ = os.Remove(f)
+		}
+
+		return c.Status(500).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal menambah attachment di MongoDB (rollback file berhasil)",
+		})
+	}
+	return c.JSON(model.APIResponse{
+		Status:  "success",
+		Message: "Attachments uploaded successfully",
+	})
 }

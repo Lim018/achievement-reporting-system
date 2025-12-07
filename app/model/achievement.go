@@ -80,7 +80,9 @@ type UpdateAchievementRequest struct {
 
 type AchievementDetailResponse struct {
 	ReferenceID        string       `json:"reference_id"` 
-	MongoID            string       `json:"mongo_id"`      
+	MongoID            string       `json:"mongo_id"`
+	StudentID 		   string 		`json:"student_id"`
+	AdvisorID          string       `json:"advisor_id,omitempty"`
 	Achievement        Achievement  `json:"achievement"`
 	ReferenceStatus    string       `json:"status"`
 	SubmittedAt        *time.Time   `json:"submitted_at,omitempty"`
