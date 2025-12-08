@@ -30,6 +30,11 @@ type StudentDetailResponse struct {
 	AdvisorName  *string `json:"advisor_name,omitempty"`
 }
 
+type StudentAchievementsResponse struct {
+	Student      StudentDetailResponse       `json:"student"`
+	Achievements []AchievementDetailResponse `json:"achievements"`
+}
+
 type UpdateStudentAdvisorRequest struct {
     AdvisorID string `json:"advisor_id" validate:"required"`
 }

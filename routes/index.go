@@ -10,7 +10,7 @@ import (
 func RegisterRoutes(app *fiber.App, db *sql.DB, mongoDB *mongo.Database) {
 	AuthRoutes(app, db)
     UserRoutes(app, db)
-    StudentRoutes(app, db)
+    StudentRoutes(app, db, mongoDB)
     LecturerRoutes(app, db)
 	AchievementRoutes(app, db, mongoDB)
 }
