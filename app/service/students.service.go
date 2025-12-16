@@ -48,7 +48,6 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 	role := c.Locals("role").(string)
 	userID := c.Locals("user_id").(string)
 
-	// === 1. Ambil data mahasiswa ===
 	student, err := repository.GetStudentByID(db, studentIDParam)
 	if err != nil {
 		return c.Status(404).JSON(model.APIResponse{
@@ -57,7 +56,6 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 		})
 	}
 
-	// === 2. Validasi akses ===
 	if role == "Student" && userID != studentIDParam {
 		return c.Status(403).JSON(model.APIResponse{
 			Status: "error",
@@ -75,7 +73,6 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 		}
 	}
 
-	// === 3. Ambil list achievement reference ===
 	refRepo := repository.NewAchievementRefRepo(db)
 	mongoRepo := repository.NewAchievementMongoRepo(mongoDB)
 
@@ -87,15 +84,13 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 		})
 	}
 
-	// === 4. Inject data MongoDB ke tiap ref ===
 	for i := range refs {
 		doc, err := mongoRepo.FindByHexID(context.Background(), refs[i].MongoID)
 		if err == nil {
 			refs[i].Achievement = *doc
 		}
 	}
-
-	// === 5. Format response sesuai SRS ===
+	
 	result := model.StudentAchievementsResponse{
 		Student:      *student,
 		Achievements: refs,

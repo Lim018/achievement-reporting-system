@@ -73,6 +73,7 @@ func seedPermissions(db *sql.DB) error {
 		{"achievement:update", "achievement", "update", "Mengupdate prestasi"},
 		{"achievement:delete", "achievement", "delete", "Menghapus prestasi"},
 		{"achievement:verify", "achievement", "verify", "Memverifikasi prestasi mahasiswa"},
+		{"report:system", "report", "system", "Menghasilkan report"},
 	}
 
 	for _, perm := range permissions {
@@ -102,6 +103,7 @@ func seedRolePermissions(db *sql.DB) error {
 		"achievement:update",
 		"achievement:delete",
 		"achievement:verify",
+		"report:system",
 	}
 
 	mahasiswaPerms := []string{
