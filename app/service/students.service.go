@@ -42,13 +42,17 @@ func GetStudentDetailService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Database) error {
-	studentIDParam := c.Params("id")
+func GetStudentAchievementsService(
+	c *fiber.Ctx,
+	db *sql.DB,
+	mongoDB *mongo.Database,
+) error {
 
+	studentID := c.Params("id")
 	role := c.Locals("role").(string)
 	userID := c.Locals("user_id").(string)
 
-	student, err := repository.GetStudentByID(db, studentIDParam)
+	student, err := repository.GetStudentByID(db, studentID)
 	if err != nil {
 		return c.Status(404).JSON(model.APIResponse{
 			Status: "error",
@@ -56,7 +60,8 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 		})
 	}
 
-	if role == "Student" && userID != studentIDParam {
+	// 🔐 RBAC
+	if role == "Student" && userID != student.UserID {
 		return c.Status(403).JSON(model.APIResponse{
 			Status: "error",
 			Error:  "Tidak boleh melihat prestasi mahasiswa lain",
@@ -64,8 +69,7 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 	}
 
 	if role == "Dosen Wali" {
-		advisor, _ := student.AdvisorID, student.AdvisorID
-		if advisor == nil || *advisor != userID {
+		if student.AdvisorID == nil || *student.AdvisorID != userID {
 			return c.Status(403).JSON(model.APIResponse{
 				Status: "error",
 				Error:  "Anda bukan dosen wali mahasiswa ini",
@@ -76,7 +80,7 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 	refRepo := repository.NewAchievementRefRepo(db)
 	mongoRepo := repository.NewAchievementMongoRepo(mongoDB)
 
-	refs, err := refRepo.ListByStudentID(studentIDParam)
+	refs, err := refRepo.ListByStudentID(student.ID)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
@@ -90,15 +94,13 @@ func GetStudentAchievementsService(c *fiber.Ctx, db *sql.DB, mongoDB *mongo.Data
 			refs[i].Achievement = *doc
 		}
 	}
-	
-	result := model.StudentAchievementsResponse{
-		Student:      *student,
-		Achievements: refs,
-	}
 
 	return c.JSON(model.APIResponse{
 		Status: "success",
-		Data:   result,
+		Data: model.StudentAchievementsResponse{
+			Student:      *student,
+			Achievements: refs,
+		},
 	})
 }
 

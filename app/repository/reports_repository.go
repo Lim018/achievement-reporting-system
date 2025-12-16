@@ -6,6 +6,7 @@ import (
 	"go-fiber/app/model"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -131,16 +132,24 @@ func (r *ReportsRepo) GetTopStudents(ctx context.Context, limit int) ([]model.To
 		}
 
 		// Get student full name from PostgreSQL
+		// result.ID adalah students.id (UUID dari tabel students)
 		var fullName string
 		err := r.PG.QueryRow(`
 			SELECT u.full_name 
-			FROM students s
-			JOIN users u ON s.user_id = u.id
+			FROM users u
+			JOIN students s ON u.id = s.user_id
 			WHERE s.id = $1
 		`, result.ID).Scan(&fullName)
 
 		if err != nil {
-			fullName = "Unknown"
+			// Jika gagal, coba fallback dengan query langsung ke students
+			err2 := r.PG.QueryRow(`
+				SELECT full_name FROM users WHERE id = $1
+			`, result.ID).Scan(&fullName)
+			
+			if err2 != nil {
+				fullName = "Unknown"
+			}
 		}
 
 		topStudents = append(topStudents, model.TopStudentData{
@@ -186,13 +195,14 @@ func (r *ReportsRepo) GetMonthlyGrowth() ([]model.MonthlyGrowthData, error) {
 func (r *ReportsRepo) GetStudentInfo(studentID string) (*model.StudentInfo, error) {
 	var info model.StudentInfo
 	var advisorName sql.NullString
+	var programStudy sql.NullString
 
 	err := r.PG.QueryRow(`
 		SELECT 
 			s.id,
 			u.full_name,
 			s.student_id,
-			s.program_study,
+			COALESCE(s.program_study, 'Belum ada program studi') as program_study,
 			COALESCE(u_advisor.full_name, 'Belum ada dosen wali') as advisor_name
 		FROM students s
 		JOIN users u ON s.user_id = u.id
@@ -203,7 +213,7 @@ func (r *ReportsRepo) GetStudentInfo(studentID string) (*model.StudentInfo, erro
 		&info.ID,
 		&info.FullName,
 		&info.StudentID,
-		&info.StudyProgram,
+		&programStudy,
 		&advisorName,
 	)
 
@@ -211,8 +221,16 @@ func (r *ReportsRepo) GetStudentInfo(studentID string) (*model.StudentInfo, erro
 		return nil, err
 	}
 
+	if programStudy.Valid {
+		info.StudyProgram = programStudy.String
+	} else {
+		info.StudyProgram = "Belum ada program studi"
+	}
+
 	if advisorName.Valid {
 		info.AdvisorName = advisorName.String
+	} else {
+		info.AdvisorName = "Belum ada dosen wali"
 	}
 
 	return &info, nil
@@ -367,6 +385,8 @@ func (r *ReportsRepo) GetStudentAchievements(ctx context.Context, studentID stri
 	defer rows.Close()
 
 	var achievements []model.StudentAchievementInfo
+	coll := r.Mongo.Collection("achievement_records")
+
 	for rows.Next() {
 		var item model.StudentAchievementInfo
 		var verifiedAt sql.NullTime
@@ -379,16 +399,15 @@ func (r *ReportsRepo) GetStudentAchievements(ctx context.Context, studentID stri
 			item.VerifiedAt = &verifiedAt.Time
 		}
 
-		// Get title, type, and points from MongoDB
-		coll := r.Mongo.Collection("achievement_records")
-		var achDoc struct {
-			Title           string `bson:"title"`
-			AchievementType string `bson:"achievementType"`
-			Points          int    `bson:"points"`
-		}
-
-		objID, err := convertHexToObjectID(item.MongoID)
+		// Get title, type, and points from MongoDB using hex string
+		objID, err := primitive.ObjectIDFromHex(item.MongoID)
 		if err == nil {
+			var achDoc struct {
+				Title           string `bson:"title"`
+				AchievementType string `bson:"achievementType"`
+				Points          int    `bson:"points"`
+			}
+
 			err = coll.FindOne(ctx, bson.M{"_id": objID}).Decode(&achDoc)
 			if err == nil {
 				item.Title = achDoc.Title
@@ -401,10 +420,4 @@ func (r *ReportsRepo) GetStudentAchievements(ctx context.Context, studentID stri
 	}
 
 	return achievements, nil
-}
-
-// Helper function to convert hex string to ObjectID
-func convertHexToObjectID(hexID string) (interface{}, error) {
-	// This is a simplified version - you should use proper MongoDB ObjectID conversion
-	return hexID, nil
 }

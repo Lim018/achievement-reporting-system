@@ -47,74 +47,78 @@ func GetUserDetail(db *sql.DB, id string) (*model.UserDetailResponse, error) {
 }
 
 func CreateUserTx(db *sql.DB, req model.CreateUserRequest, hashedPass string) error {
-    tx, err := db.Begin()
-    if err != nil {
-        return err
-    }
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
 
-    _, err = tx.Exec(`
-        INSERT INTO users (username, email, password_hash, full_name, role_id)
-        SELECT $1, $2, $3, $4, r.id
-        FROM roles r
-        WHERE r.name = $5
-    `,
-        req.Username, req.Email, hashedPass, req.FullName, req.RoleName,
-    )
-    if err != nil {
-        tx.Rollback()
-        return err
-    }
+	var userID string
+	err = tx.QueryRow(`
+		INSERT INTO users (username, email, password_hash, full_name, role_id)
+		SELECT $1, $2, $3, $4, r.id
+		FROM roles r
+		WHERE r.name = $5
+		RETURNING id
+	`,
+		req.Username,
+		req.Email,
+		hashedPass,
+		req.FullName,
+		req.RoleName,
+	).Scan(&userID)
 
-    var userID string
-    err = tx.QueryRow(`SELECT id FROM users WHERE username = $1`, req.Username).Scan(&userID)
-    if err != nil {
-        tx.Rollback()
-        return err
-    }
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
-    if req.StudentID != nil {
-        _, err = tx.Exec(`
-            INSERT INTO students (id, student_id, study_program, year_of_entry)
-            VALUES ($1, $2, $3, $4)
-        `,
-            userID,
-            *req.StudentID,
-            req.StudyProgram,
-            req.Year,
-        )
-        if err != nil {
-            tx.Rollback()
-            return err
-        }
-    }
+	if req.StudentID != nil {
+		_, err = tx.Exec(`
+			INSERT INTO students (user_id, student_id, study_program, year_of_entry)
+			VALUES ($1, $2, $3, $4)
+		`,
+			userID,
+			*req.StudentID,
+			req.StudyProgram,
+			req.Year,
+		)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
-    if req.AdvisorID != nil {
-        _, err = tx.Exec(`
-            UPDATE students SET advisor_id = $1
-            WHERE id = $2
-        `, *req.AdvisorID, userID)
-        if err != nil {
-            tx.Rollback()
-            return err
-        }
-    }
+	if req.AdvisorID != nil {
+		_, err = tx.Exec(`
+			UPDATE students
+			SET advisor_id = $1
+			WHERE user_id = $2
+		`,
+			*req.AdvisorID,
+			userID,
+		)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
-    if req.LecturerID != nil {
-        _, err = tx.Exec(`
-            INSERT INTO lecturers (id, lecturer_id, department)
-            VALUES ($1, $2, $3)
-        `,
-            userID,
-            *req.LecturerID,
-            req.Department,
-        )
-        if err != nil {
-            tx.Rollback()
-            return err
-        }
-    }
+	if req.LecturerID != nil {
+		_, err = tx.Exec(`
+			INSERT INTO lecturers (user_id, lecturer_id, department)
+			VALUES ($1, $2, $3)
+		`,
+			userID,
+			*req.LecturerID,
+			req.Department,
+		)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
-    return tx.Commit()
+	return tx.Commit()
 }
 
 func UpdateUser(db *sql.DB, id string, req model.UpdateUserRequest) error {

@@ -49,26 +49,28 @@ func RunMigrations(db *sql.DB) error {
 
 		// Create lecturers table
 		`CREATE TABLE IF NOT EXISTS lecturers (
-			id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			lecturer_id VARCHAR(50) UNIQUE NOT NULL,
 			department VARCHAR(100),
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)`,
+		);`,
 
 		// Create students table
 		`CREATE TABLE IF NOT EXISTS students (
-			id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			student_id VARCHAR(50) UNIQUE NOT NULL,
 			study_program VARCHAR(100),
 			year_of_entry INT,
 			advisor_id UUID REFERENCES lecturers(id) ON DELETE SET NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)`,
+		);`,
 
 		// Create achievement_references table
 		`CREATE TABLE IF NOT EXISTS achievement_references (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+			student_id UUID REFERENCES students(id),
 			mongo_achievement_id VARCHAR(24) NOT NULL,
 			status VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'submitted', 'verified', 'rejected', 'deleted')),
 			submitted_at TIMESTAMP,
@@ -86,6 +88,8 @@ func RunMigrations(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_students_student_id ON students(student_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_students_advisor_id ON students(advisor_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_lecturers_lecturer_id ON lecturers(lecturer_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_students_user_id ON students(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_lecturers_user_id ON lecturers(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_student_id ON achievement_references(student_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_mongo_id ON achievement_references(mongo_achievement_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_achievement_refs_status ON achievement_references(status)`,

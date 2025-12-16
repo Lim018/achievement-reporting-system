@@ -8,54 +8,71 @@ import (
 
 func GetAllStudents(db *sql.DB) ([]model.StudentListResponse, error) {
 	rows, err := db.Query(`
-		SELECT s.id, u.full_name, s.student_id, s.study_program, s.year_of_entry,
-		       a.full_name AS advisor_name
+		SELECT 
+			s.id,
+			s.user_id,
+			u.full_name,
+			s.student_id,
+			s.study_program,
+			s.year_of_entry,
+			a.full_name AS advisor_name
 		FROM students s
-		JOIN users u ON s.id = u.id
+		JOIN users u ON s.user_id = u.id
 		LEFT JOIN users a ON s.advisor_id = a.id
-		ORDER BY s.created_at DESC`)
+		ORDER BY s.created_at DESC
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var students []model.StudentListResponse
+	var out []model.StudentListResponse
 
 	for rows.Next() {
 		var s model.StudentListResponse
-		var advisor *string
-
 		if err := rows.Scan(
 			&s.ID,
+			&s.UserID,
 			&s.FullName,
 			&s.StudentID,
 			&s.StudyProgram,
 			&s.YearOfEntry,
-			&advisor,
+			&s.AdvisorName,
 		); err != nil {
 			return nil, err
 		}
-
-		s.AdvisorName = advisor
-
-		students = append(students, s)
+		out = append(out, s)
 	}
 
-	return students, nil
+	return out, nil
 }
 
-func GetStudentByID(db *sql.DB, id string) (*model.StudentDetailResponse, error) {
+func GetStudentByID(db *sql.DB, studentID string) (*model.StudentDetailResponse, error) {
 	var s model.StudentDetailResponse
 
 	err := db.QueryRow(`
-		SELECT s.id, u.full_name, s.student_id, s.study_program, s.year_of_entry,
-		       a.full_name AS advisor_name
+		SELECT 
+			s.id,
+			s.user_id,
+			u.full_name,
+			s.student_id,
+			s.study_program,
+			s.year_of_entry,
+			s.advisor_id,
+			a.full_name AS advisor_name
 		FROM students s
-		JOIN users u ON s.id = u.id
+		JOIN users u ON s.user_id = u.id
 		LEFT JOIN users a ON s.advisor_id = a.id
 		WHERE s.id = $1
-	`, id).Scan(
-		&s.ID, &s.FullName, &s.StudentID, &s.StudyProgram, &s.YearOfEntry, &s.AdvisorName,
+	`, studentID).Scan(
+		&s.ID,
+		&s.UserID,
+		&s.FullName,
+		&s.StudentID,
+		&s.StudyProgram,
+		&s.YearOfEntry,
+		&s.AdvisorID,
+		&s.AdvisorName,
 	)
 
 	if err != nil {
@@ -145,7 +162,9 @@ func (r *AchievementRefRepo) ListByStudentID(studentID string) ([]model.Achievem
 
 func UpdateStudentAdvisor(db *sql.DB, studentID, advisorID string) error {
 	_, err := db.Exec(`
-		UPDATE students SET advisor_id = $1 WHERE id = $2`,
-		advisorID, studentID)
+		UPDATE students
+		SET advisor_id = $1
+		WHERE id = $2
+	`, advisorID, studentID)
 	return err
 }
