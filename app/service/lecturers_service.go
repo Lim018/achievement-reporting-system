@@ -11,7 +11,7 @@ import (
 func GetAllLecturersService(c *fiber.Ctx, db *sql.DB) error {
 	lecturers, err := repository.GetAllLecturers(db)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
+		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
 			Error:  "Gagal mengambil daftar dosen",
 		})
@@ -24,9 +24,11 @@ func GetAllLecturersService(c *fiber.Ctx, db *sql.DB) error {
 }
 
 func GetLecturerAdviseesService(c *fiber.Ctx, db *sql.DB) error {
-	advisees, err := repository.GetLecturerAdvisees(db, c.Params("id"))
+	lecturerID := c.Params("id")
+
+	advisees, err := repository.GetLecturerAdvisees(db, lecturerID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
+		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
 			Error:  "Gagal mengambil daftar mahasiswa bimbingan",
 		})
