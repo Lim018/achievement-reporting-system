@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"go-fiber/app/model"
@@ -15,11 +16,78 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type AchievementCache struct {
+	sync.RWMutex
+	data map[string]*model.Achievement
+	ttl  time.Duration
+	exp  map[string]time.Time
+}
+
+func NewAchievementCache(ttl time.Duration) *AchievementCache {
+	cache := &AchievementCache{
+		data: make(map[string]*model.Achievement),
+		exp:  make(map[string]time.Time),
+		ttl:  ttl,
+	}
+	
+	go cache.cleanup()
+	return cache
+}
+
+func (c *AchievementCache) Get(key string) (*model.Achievement, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	
+	if exp, exists := c.exp[key]; exists {
+		if time.Now().After(exp) {
+			return nil, false
+		}
+		if val, ok := c.data[key]; ok {
+			return val, true
+		}
+	}
+	return nil, false
+}
+
+func (c *AchievementCache) Set(key string, val *model.Achievement) {
+	c.Lock()
+	defer c.Unlock()
+	
+	c.data[key] = val
+	c.exp[key] = time.Now().Add(c.ttl)
+}
+
+func (c *AchievementCache) Delete(key string) {
+	c.Lock()
+	defer c.Unlock()
+	
+	delete(c.data, key)
+	delete(c.exp, key)
+}
+
+func (c *AchievementCache) cleanup() {
+	ticker := time.NewTicker(c.ttl)
+	defer ticker.Stop()
+	
+	for range ticker.C {
+		c.Lock()
+		now := time.Now()
+		for k, exp := range c.exp {
+			if now.After(exp) {
+				delete(c.data, k)
+				delete(c.exp, k)
+			}
+		}
+		c.Unlock()
+	}
+}
+
 type AchievementService struct {
 	PGRepo  *repository.AchievementRefRepo
 	Mongo   *repository.AchievementMongoRepo
 	PG      *sql.DB
 	MongoDB *mongo.Database
+	Cache   *AchievementCache
 }
 
 func NewAchievementService(pg *sql.DB, mongoDB *mongo.Database) *AchievementService {
@@ -28,6 +96,7 @@ func NewAchievementService(pg *sql.DB, mongoDB *mongo.Database) *AchievementServ
 		Mongo:   repository.NewAchievementMongoRepo(mongoDB),
 		PG:      pg,
 		MongoDB: mongoDB,
+		Cache:   NewAchievementCache(5 * time.Minute),
 	}
 }
 
@@ -60,6 +129,76 @@ func getStudentID(c *fiber.Ctx, db *sql.DB) (string, error) {
 	return studentID, nil
 }
 
+func (s *AchievementService) batchFetchAchievements(ctx context.Context, mongoIDs []string) (map[string]*model.Achievement, error) {
+	if len(mongoIDs) == 0 {
+		return make(map[string]*model.Achievement), nil
+	}
+
+	result := make(map[string]*model.Achievement)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	
+	uncachedIDs := []string{}
+	for _, id := range mongoIDs {
+		if cached, ok := s.Cache.Get(id); ok {
+			result[id] = cached
+		} else {
+			uncachedIDs = append(uncachedIDs, id)
+		}
+	}
+
+	if len(uncachedIDs) == 0 {
+		return result, nil
+	}
+
+	projection := bson.M{
+		"_id":             1,
+		"studentId":       1,
+		"achievementType": 1,
+		"title":           1,
+		"description":     1,
+		"details":         1,
+		"attachments":     1,
+		"tags":            1,
+		"points":          1,
+		"createdAt":       1,
+		"updatedAt":       1,
+	}
+	
+	semaphore := make(chan struct{}, 10)
+	errChan := make(chan error, len(uncachedIDs))
+
+	for _, mongoID := range uncachedIDs {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			doc, err := s.Mongo.FindByHexIDWithProjection(ctx, id, projection)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			mu.Lock()
+			result[id] = doc
+			s.Cache.Set(id, doc)
+			mu.Unlock()
+		}(mongoID)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		return result, <-errChan
+	}
+
+	return result, nil
+}
+
+// func utama
 func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {
@@ -94,7 +233,9 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 		ach.Details.CustomFields = req.Details
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	mongoID, err := s.Mongo.Create(ctx, ach)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -166,9 +307,14 @@ func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 
 	update["updatedAt"] = time.Now()
 
-	if err := s.Mongo.UpdateByHexID(context.Background(), ref.MongoID, update); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.Mongo.UpdateByHexID(ctx, ref.MongoID, update); err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal update MongoDB"})
 	}
+
+	s.Cache.Delete(ref.MongoID)
 
 	return c.JSON(model.APIResponse{Status: "success", Message: "Updated"})
 }
@@ -192,6 +338,8 @@ func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 	if err := s.PGRepo.SoftDeleteReference(refID); err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal menghapus"})
 	}
+
+	s.Cache.Delete(ref.MongoID)
 
 	return c.JSON(model.APIResponse{Status: "success", Message: "deleted"})
 }
@@ -238,10 +386,15 @@ func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
 		return c.Status(400).JSON(model.APIResponse{Status: "error", Error: "Points tidak valid"})
 	}
 
-	_ = s.Mongo.UpdateByHexID(context.Background(), ref.MongoID, bson.M{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_ = s.Mongo.UpdateByHexID(ctx, ref.MongoID, bson.M{
 		"points":    body.Points,
 		"updatedAt": time.Now(),
 	})
+
+	s.Cache.Delete(ref.MongoID)
 
 	if err := s.PGRepo.VerifyReference(refID, advisorID); err != nil {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal verifikasi"})
@@ -278,6 +431,9 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 	var list []model.AchievementDetailResponse
 	var err error
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	switch role {
 	case "Admin":
 		list, err = s.PGRepo.ListForAdmin()
@@ -292,9 +448,20 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data"})
 	}
 
+	mongoIDs := make([]string, 0, len(list))
+	for _, item := range list {
+		mongoIDs = append(mongoIDs, item.MongoID)
+	}
+
+	achievements, err := s.batchFetchAchievements(ctx, mongoIDs)
+	if err != nil {
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil detail"})
+	}
+
 	for i := range list {
-		doc, _ := s.Mongo.FindByHexID(context.Background(), list[i].MongoID)
-		list[i].Achievement = *doc
+		if ach, ok := achievements[list[i].MongoID]; ok && ach != nil {
+			list[i].Achievement = *ach
+		}
 	}
 
 	return c.JSON(model.APIResponse{Status: "success", Data: list})
@@ -340,7 +507,18 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 		})
 	}
 
-	ach, err := s.Mongo.FindByHexID(context.Background(), ref.MongoID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if cached, ok := s.Cache.Get(ref.MongoID); ok {
+		ref.Achievement = *cached
+		return c.JSON(model.APIResponse{
+			Status: "success",
+			Data:   ref,
+		})
+	}
+
+	ach, err := s.Mongo.FindByHexID(ctx, ref.MongoID)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
@@ -348,6 +526,7 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 		})
 	}
 
+	s.Cache.Set(ref.MongoID, ach)
 	ref.Achievement = *ach
 
 	return c.JSON(model.APIResponse{
@@ -493,7 +672,10 @@ func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := s.Mongo.AddAttachments(context.Background(), ref.MongoID, attachments); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.Mongo.AddAttachments(ctx, ref.MongoID, attachments); err != nil {
 		for _, f := range savedFiles {
 			_ = os.Remove(f)
 		}
@@ -502,6 +684,8 @@ func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
 			Error:  "Gagal menambah attachment",
 		})
 	}
+
+	s.Cache.Delete(ref.MongoID)
 
 	return c.JSON(model.APIResponse{
 		Status:  "success",
