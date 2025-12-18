@@ -22,7 +22,6 @@ func NewReportsRepo(pg *sql.DB, mongoDB *mongo.Database) *ReportsRepo {
 	}
 }
 
-// Get total counts for system statistics
 func (r *ReportsRepo) GetTotalCounts() (model.TotalsData, error) {
 	var totals model.TotalsData
 
@@ -44,7 +43,6 @@ func (r *ReportsRepo) GetTotalCounts() (model.TotalsData, error) {
 	return totals, nil
 }
 
-// Get achievement status breakdown
 func (r *ReportsRepo) GetAchievementStatusBreakdown() (map[string]int, error) {
 	rows, err := r.PG.Query(`
 		SELECT status, COUNT(*) as count
@@ -70,7 +68,6 @@ func (r *ReportsRepo) GetAchievementStatusBreakdown() (map[string]int, error) {
 	return statusMap, nil
 }
 
-// Get achievement type breakdown from MongoDB
 func (r *ReportsRepo) GetAchievementTypeBreakdown(ctx context.Context) (map[string]int, error) {
 	coll := r.Mongo.Collection("achievement_records")
 
@@ -102,7 +99,6 @@ func (r *ReportsRepo) GetAchievementTypeBreakdown(ctx context.Context) (map[stri
 	return typeMap, nil
 }
 
-// Get top students by total points
 func (r *ReportsRepo) GetTopStudents(ctx context.Context, limit int) ([]model.TopStudentData, error) {
 	coll := r.Mongo.Collection("achievement_records")
 
@@ -131,8 +127,6 @@ func (r *ReportsRepo) GetTopStudents(ctx context.Context, limit int) ([]model.To
 			return nil, err
 		}
 
-		// Get student full name from PostgreSQL
-		// result.ID adalah students.id (UUID dari tabel students)
 		var fullName string
 		err := r.PG.QueryRow(`
 			SELECT u.full_name 
@@ -142,7 +136,6 @@ func (r *ReportsRepo) GetTopStudents(ctx context.Context, limit int) ([]model.To
 		`, result.ID).Scan(&fullName)
 
 		if err != nil {
-			// Jika gagal, coba fallback dengan query langsung ke students
 			err2 := r.PG.QueryRow(`
 				SELECT full_name FROM users WHERE id = $1
 			`, result.ID).Scan(&fullName)
@@ -162,7 +155,6 @@ func (r *ReportsRepo) GetTopStudents(ctx context.Context, limit int) ([]model.To
 	return topStudents, nil
 }
 
-// Get monthly growth statistics
 func (r *ReportsRepo) GetMonthlyGrowth() ([]model.MonthlyGrowthData, error) {
 	rows, err := r.PG.Query(`
 		SELECT 
@@ -191,7 +183,6 @@ func (r *ReportsRepo) GetMonthlyGrowth() ([]model.MonthlyGrowthData, error) {
 	return growth, nil
 }
 
-// Get student info
 func (r *ReportsRepo) GetStudentInfo(studentID string) (*model.StudentInfo, error) {
 	var info model.StudentInfo
 	var advisorName sql.NullString
@@ -236,7 +227,6 @@ func (r *ReportsRepo) GetStudentInfo(studentID string) (*model.StudentInfo, erro
 	return &info, nil
 }
 
-// Get student summary
 func (r *ReportsRepo) GetStudentSummary(ctx context.Context, studentID string) (model.StudentSummary, error) {
 	var summary model.StudentSummary
 
@@ -250,7 +240,6 @@ func (r *ReportsRepo) GetStudentSummary(ctx context.Context, studentID string) (
 		return summary, err
 	}
 
-	// Get total points from MongoDB
 	coll := r.Mongo.Collection("achievement_records")
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{{Key: "studentId", Value: studentID}}}},
@@ -279,7 +268,6 @@ func (r *ReportsRepo) GetStudentSummary(ctx context.Context, studentID string) (
 	return summary, nil
 }
 
-// Get student achievement status breakdown
 func (r *ReportsRepo) GetStudentAchievementStatusBreakdown(studentID string) (map[string]int, error) {
 	rows, err := r.PG.Query(`
 		SELECT status, COUNT(*) as count
@@ -305,7 +293,6 @@ func (r *ReportsRepo) GetStudentAchievementStatusBreakdown(studentID string) (ma
 	return statusMap, nil
 }
 
-// Get student achievement type breakdown
 func (r *ReportsRepo) GetStudentAchievementTypeBreakdown(ctx context.Context, studentID string) (map[string]int, error) {
 	coll := r.Mongo.Collection("achievement_records")
 
@@ -338,7 +325,6 @@ func (r *ReportsRepo) GetStudentAchievementTypeBreakdown(ctx context.Context, st
 	return typeMap, nil
 }
 
-// Get student monthly growth
 func (r *ReportsRepo) GetStudentMonthlyGrowth(studentID string) ([]model.MonthlyGrowthData, error) {
 	rows, err := r.PG.Query(`
 		SELECT 
@@ -367,7 +353,6 @@ func (r *ReportsRepo) GetStudentMonthlyGrowth(studentID string) ([]model.Monthly
 	return growth, nil
 }
 
-// Get student achievements list
 func (r *ReportsRepo) GetStudentAchievements(ctx context.Context, studentID string) ([]model.StudentAchievementInfo, error) {
 	rows, err := r.PG.Query(`
 		SELECT 
@@ -399,7 +384,6 @@ func (r *ReportsRepo) GetStudentAchievements(ctx context.Context, studentID stri
 			item.VerifiedAt = &verifiedAt.Time
 		}
 
-		// Get title, type, and points from MongoDB using hex string
 		objID, err := primitive.ObjectIDFromHex(item.MongoID)
 		if err == nil {
 			var achDoc struct {

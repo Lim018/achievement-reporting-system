@@ -21,11 +21,9 @@ func NewReportsService(pg *sql.DB, mongoDB *mongo.Database) *ReportsService {
 	}
 }
 
-// Get system statistics
 func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 	ctx := context.Background()
 
-	// Get totals
 	totals, err := s.Repo.GetTotalCounts()
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -34,7 +32,6 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get achievement status breakdown
 	statusBreakdown, err := s.Repo.GetAchievementStatusBreakdown()
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -43,7 +40,6 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get achievement type breakdown
 	typeBreakdown, err := s.Repo.GetAchievementTypeBreakdown(ctx)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -52,7 +48,6 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get top students
 	topStudents, err := s.Repo.GetTopStudents(ctx, 10)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -61,7 +56,6 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get monthly growth
 	monthlyGrowth, err := s.Repo.GetMonthlyGrowth()
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{
@@ -84,22 +78,18 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 	})
 }
 
-// Get student report
 func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 	ctx := context.Background()
 
-	input := c.Params("id") // bisa student.id atau student_id
+	input := c.Params("id")
 	role := getUserRole(c)
-	userID := getUserID(c) // users.id dari JWT
+	userID := getUserID(c)
 
 	var student struct {
 		ID     string
 		UserID string
 	}
 
-	// ===============================
-	// Resolve student (by UUID / NIM)
-	// ===============================
 	err := s.Repo.PG.QueryRow(`
 		SELECT id, user_id
 		FROM students
@@ -119,11 +109,6 @@ func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 		})
 	}
 
-	// ===============================
-	// RBAC
-	// ===============================
-
-	// Mahasiswa hanya boleh lihat data sendiri
 	if role == "Mahasiswa" && userID != student.UserID {
 		return c.Status(403).JSON(model.APIResponse{
 			Status: "error",
@@ -131,7 +116,6 @@ func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 		})
 	}
 
-	// Dosen wali hanya boleh lihat mahasiswa bimbingan
 	if role == "Dosen Wali" {
 		var advisorUserID string
 
@@ -150,9 +134,6 @@ func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 		}
 	}
 
-	// ===============================
-	// Fetch report data
-	// ===============================
 	studentInfo, err := s.Repo.GetStudentInfo(student.ID)
 	if err != nil {
 		return c.Status(500).JSON(model.APIResponse{

@@ -168,3 +168,11 @@ func UpdateStudentAdvisor(db *sql.DB, studentID, advisorID string) error {
 	`, advisorID, studentID)
 	return err
 }
+
+func GetStudentIDByUserID(db *sql.DB, userID string) (string, error) {
+	var studentID string
+	err := db.QueryRow(`
+		SELECT id FROM students WHERE user_id = $1
+	`, userID).Scan(&studentID)
+	return studentID, err
+}

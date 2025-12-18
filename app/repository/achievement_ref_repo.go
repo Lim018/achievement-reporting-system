@@ -79,15 +79,16 @@ func (r *AchievementRefRepo) GetReferenceDetail(refID string) (*model.Achievemen
 	var out model.AchievementDetailResponse
 	var submittedAt, verifiedAt sql.NullTime
 	var verifiedBy, rejectionNote sql.NullString
-	var mongoHex, studentID, advisorID string
+	var mongoHex, studentID, advisorUserID string
 
 	err := r.PG.QueryRow(`
         SELECT ar.id, ar.student_id, ar.mongo_achievement_id, ar.status,
                ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note,
                ar.created_at, ar.updated_at,
-               s.advisor_id
+               l.user_id
         FROM achievement_references ar
         JOIN students s ON ar.student_id = s.id
+        LEFT JOIN lecturers l ON s.advisor_id = l.id
         WHERE ar.id = $1
     `, refID).Scan(
 		&out.ReferenceID,
@@ -100,7 +101,7 @@ func (r *AchievementRefRepo) GetReferenceDetail(refID string) (*model.Achievemen
 		&rejectionNote,
 		&out.CreatedAtRef,
 		&out.UpdatedAtRef,
-		&advisorID,
+		&advisorUserID,
 	)
 
 	if err != nil {
@@ -109,7 +110,7 @@ func (r *AchievementRefRepo) GetReferenceDetail(refID string) (*model.Achievemen
 
 	out.StudentID = studentID
 	out.MongoID = mongoHex
-	out.AdvisorID = advisorID
+	out.AdvisorID = advisorUserID
 
 	if submittedAt.Valid {
 		out.SubmittedAt = &submittedAt.Time
@@ -129,22 +130,23 @@ func (r *AchievementRefRepo) GetReferenceDetail(refID string) (*model.Achievemen
 	return &out, nil
 }
 
-func (r *AchievementRefRepo) GetReferenceWithAdvisor(refID, advisorID string) (*model.AchievementDetailResponse, error) {
+func (r *AchievementRefRepo) GetReferenceWithAdvisor(refID, advisorUserID string) (*model.AchievementDetailResponse, error) {
 	var out model.AchievementDetailResponse
 	var submittedAt, verifiedAt sql.NullTime
 	var verifiedBy, rejectionNote sql.NullString
 
-	var mongoHex, studentID, retrievedAdvisorID string
+	var mongoHex, studentID, retrievedAdvisorUserID string
 
 	err := r.PG.QueryRow(`
         SELECT ar.id, ar.student_id, ar.mongo_achievement_id, ar.status,
                ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note,
                ar.created_at, ar.updated_at,
-               s.advisor_id
+               l.user_id
         FROM achievement_references ar
         JOIN students s ON ar.student_id = s.id
-        WHERE ar.id = $1
-    `, refID).Scan(
+        LEFT JOIN lecturers l ON s.advisor_id = l.id
+        WHERE ar.id = $1 AND l.user_id = $2
+    `, refID, advisorUserID).Scan(
 		&out.ReferenceID,
 		&studentID,
 		&mongoHex,
@@ -155,7 +157,7 @@ func (r *AchievementRefRepo) GetReferenceWithAdvisor(refID, advisorID string) (*
 		&rejectionNote,
 		&out.CreatedAtRef,
 		&out.UpdatedAtRef,
-		&retrievedAdvisorID,
+		&retrievedAdvisorUserID,
 	)
 
 	if err != nil {
@@ -164,7 +166,7 @@ func (r *AchievementRefRepo) GetReferenceWithAdvisor(refID, advisorID string) (*
 
 	out.StudentID = studentID
 	out.MongoID = mongoHex
-	out.AdvisorID = retrievedAdvisorID
+	out.AdvisorID = retrievedAdvisorUserID
 
 	if submittedAt.Valid {
 		out.SubmittedAt = &submittedAt.Time
@@ -278,16 +280,17 @@ func (r *AchievementRefRepo) ListForStudent(studentID string) ([]model.Achieveme
 	return out, nil
 }
 
-func (r *AchievementRefRepo) ListForAdvisor(advisorID string) ([]model.AchievementDetailResponse, error) {
+func (r *AchievementRefRepo) ListForAdvisor(advisorUserID string) ([]model.AchievementDetailResponse, error) {
 	rows, err := r.PG.Query(`
         SELECT ar.id, ar.mongo_achievement_id, ar.status,
                ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note,
                ar.created_at, ar.updated_at
         FROM achievement_references ar
         JOIN students s ON ar.student_id = s.id
-        WHERE s.advisor_id = $1 AND ar.status != 'deleted'
+        JOIN lecturers l ON s.advisor_id = l.id
+        WHERE l.user_id = $1 AND ar.status != 'deleted'
         ORDER BY ar.created_at DESC
-    `, advisorID)
+    `, advisorUserID)
 	if err != nil {
 		return nil, err
 	}
