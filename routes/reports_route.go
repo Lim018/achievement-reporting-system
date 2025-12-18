@@ -14,13 +14,7 @@ func ReportsRoutes(app *fiber.App, db *sql.DB, mongoDB *mongo.Database) {
 	
 	reports := app.Group("/api/v1/reports", middleware.AuthRequired())
 
-	reports.Get("/statistics", 
-		middleware.RequirePermission("report:system"), 
-		svc.GetSystemStatistics,
-	)
+	reports.Get("/statistics", middleware.RequirePermission("report:system"), svc.GetSystemStatistics,)
 
-	reports.Get("/student/:id", 
-		middleware.RequirePermission("achievement:read"), 
-		svc.GetStudentReport,
-	)
+	reports.Get("/student/:id", middleware.RequirePermission("achievement:read"), svc.GetStudentReport,)
 }

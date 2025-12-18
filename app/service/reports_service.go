@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"database/sql"
+	"sync"
+	"time"
 
 	"go-fiber/app/model"
 	"go-fiber/app/repository"
@@ -22,54 +24,85 @@ func NewReportsService(pg *sql.DB, mongoDB *mongo.Database) *ReportsService {
 }
 
 func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	totals, err := s.Repo.GetTotalCounts()
-	if err != nil {
+	var response model.SystemStatisticsResponse
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errChan := make(chan error, 5)
+
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		totals, err := s.Repo.GetTotalCounts(ctx)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.Totals = totals
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		statusBreakdown, err := s.Repo.GetAchievementStatusBreakdown(ctx)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.AchievementStatus = statusBreakdown
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		typeBreakdown, err := s.Repo.GetAchievementTypeBreakdown(ctx)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.AchievementByType = typeBreakdown
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		topStudents, err := s.Repo.GetTopStudents(ctx, 10)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.TopStudents = topStudents
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		monthlyGrowth, err := s.Repo.GetMonthlyGrowth(ctx)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.MonthlyGrowth = monthlyGrowth
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		err := <-errChan
 		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
-			Error:  "Gagal mengambil total counts",
+			Error:  "Gagal mengambil statistik: " + err.Error(),
 		})
-	}
-
-	statusBreakdown, err := s.Repo.GetAchievementStatusBreakdown()
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengambil status breakdown",
-		})
-	}
-
-	typeBreakdown, err := s.Repo.GetAchievementTypeBreakdown(ctx)
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengambil type breakdown",
-		})
-	}
-
-	topStudents, err := s.Repo.GetTopStudents(ctx, 10)
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengambil top students",
-		})
-	}
-
-	monthlyGrowth, err := s.Repo.GetMonthlyGrowth()
-	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{
-			Status: "error",
-			Error:  "Gagal mengambil monthly growth",
-		})
-	}
-
-	response := model.SystemStatisticsResponse{
-		Totals:            totals,
-		AchievementStatus: statusBreakdown,
-		AchievementByType: typeBreakdown,
-		TopStudents:       topStudents,
-		MonthlyGrowth:     monthlyGrowth,
 	}
 
 	return c.JSON(model.APIResponse{
@@ -79,23 +112,14 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 }
 
 func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	input := c.Params("id")
 	role := getUserRole(c)
 	userID := getUserID(c)
 
-	var student struct {
-		ID     string
-		UserID string
-	}
-
-	err := s.Repo.PG.QueryRow(`
-		SELECT id, user_id
-		FROM students
-		WHERE id::text = $1 OR student_id = $1
-	`, input).Scan(&student.ID, &student.UserID)
-
+	student, err := s.Repo.GetStudentByIDOrStudentID(ctx, input)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.Status(404).JSON(model.APIResponse{
@@ -117,15 +141,7 @@ func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 	}
 
 	if role == "Dosen Wali" {
-		var advisorUserID string
-
-		err := s.Repo.PG.QueryRow(`
-			SELECT l.user_id
-			FROM students s
-			JOIN lecturers l ON s.advisor_id = l.id
-			WHERE s.id = $1
-		`, student.ID).Scan(&advisorUserID)
-
+		advisorUserID, err := s.Repo.GetAdvisorUserID(ctx, student.ID)
 		if err != nil || advisorUserID != userID {
 			return c.Status(403).JSON(model.APIResponse{
 				Status: "error",
@@ -134,29 +150,93 @@ func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 		}
 	}
 
-	studentInfo, err := s.Repo.GetStudentInfo(student.ID)
-	if err != nil {
+	var response model.StudentReportResponse
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errChan := make(chan error, 6)
+
+	wg.Add(6)
+
+	go func() {
+		defer wg.Done()
+		studentInfo, err := s.Repo.GetStudentInfo(ctx, student.ID)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		mu.Lock()
+		response.Student = *studentInfo
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		summary, err := s.Repo.GetStudentSummary(ctx, student.ID)
+		if err != nil {
+			summary = model.StudentSummary{}
+		}
+		mu.Lock()
+		response.Summary = summary
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		statusBreakdown, err := s.Repo.GetStudentAchievementStatusBreakdown(ctx, student.ID)
+		if err != nil {
+			statusBreakdown = make(map[string]int)
+		}
+		mu.Lock()
+		response.AchievementStatus = statusBreakdown
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		typeBreakdown, err := s.Repo.GetStudentAchievementTypeBreakdown(ctx, student.ID)
+		if err != nil {
+			typeBreakdown = make(map[string]int)
+		}
+		mu.Lock()
+		response.AchievementByType = typeBreakdown
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		monthlyGrowth, err := s.Repo.GetStudentMonthlyGrowth(ctx, student.ID)
+		if err != nil {
+			monthlyGrowth = []model.MonthlyGrowthData{}
+		}
+		mu.Lock()
+		response.MonthlyGrowth = monthlyGrowth
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		achievements, err := s.Repo.GetStudentAchievements(ctx, student.ID)
+		if err != nil {
+			achievements = []model.StudentAchievementInfo{}
+		}
+		mu.Lock()
+		response.Achievements = achievements
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+	close(errChan)
+
+	if len(errChan) > 0 {
+		err := <-errChan
 		return c.Status(500).JSON(model.APIResponse{
 			Status: "error",
-			Error:  "Gagal mengambil informasi mahasiswa",
+			Error:  "Gagal mengambil informasi mahasiswa: " + err.Error(),
 		})
 	}
 
-	summary, _ := s.Repo.GetStudentSummary(ctx, student.ID)
-	statusBreakdown, _ := s.Repo.GetStudentAchievementStatusBreakdown(student.ID)
-	typeBreakdown, _ := s.Repo.GetStudentAchievementTypeBreakdown(ctx, student.ID)
-	monthlyGrowth, _ := s.Repo.GetStudentMonthlyGrowth(student.ID)
-	achievements, _ := s.Repo.GetStudentAchievements(ctx, student.ID)
-
 	return c.JSON(model.APIResponse{
 		Status: "success",
-		Data: model.StudentReportResponse{
-			Student:           *studentInfo,
-			Summary:           summary,
-			AchievementStatus: statusBreakdown,
-			AchievementByType: typeBreakdown,
-			MonthlyGrowth:     monthlyGrowth,
-			Achievements:      achievements,
-		},
+		Data:   response,
 	})
 }
