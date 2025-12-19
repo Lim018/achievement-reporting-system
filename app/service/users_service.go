@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
 	"database/sql"
+	"time"
+
 	"go-fiber/app/model"
 	"go-fiber/app/repository"
 	"go-fiber/utils"
@@ -9,8 +12,21 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func GetAllUsersService(c *fiber.Ctx, db *sql.DB) error {
-	users, err := repository.GetAllUsers(db)
+type UsersService struct {
+	Repo *repository.UsersRepo
+}
+
+func NewUsersService(db *sql.DB) *UsersService {
+	return &UsersService{
+		Repo: repository.NewUsersRepo(db),
+	}
+}
+
+func (s *UsersService) GetAllUsersService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	users, err := s.Repo.GetAllUsers(ctx)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
@@ -24,14 +40,23 @@ func GetAllUsersService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func GetUserDetailService(c *fiber.Ctx, db *sql.DB) error {
+func (s *UsersService) GetUserDetailService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	id := c.Params("id")
 
-	user, err := repository.GetUserDetail(db, id)
+	user, err := s.Repo.GetUserWithRoleInfo(ctx, id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(model.APIResponse{
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Pengguna tidak ditemukan",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
-			Error:  "Pengguna tidak ditemukan",
+			Error:  "Gagal mengambil detail pengguna",
 		})
 	}
 
@@ -41,14 +66,41 @@ func GetUserDetailService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func CreateUserService(c *fiber.Ctx, db *sql.DB) error {
-	var req model.CreateUserRequest
+func (s *UsersService) CreateUserService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
+	var req model.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
 			Status: "error",
 			Error:  "Body request tidak valid",
 		})
+	}
+
+	if req.Username == "" || req.Email == "" || req.Password == "" || req.FullName == "" || req.RoleName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Field wajib tidak boleh kosong",
+		})
+	}
+
+	if req.RoleName == "Mahasiswa" {
+		if req.StudentID == nil || *req.StudentID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "student_id wajib diisi untuk role Mahasiswa",
+			})
+		}
+	}
+
+	if req.RoleName == "Dosen Wali" {
+		if req.LecturerID == nil || *req.LecturerID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "lecturer_id wajib diisi untuk role Dosen Wali",
+			})
+		}
 	}
 
 	hashedPass, err := utils.HashPassword(req.Password)
@@ -59,7 +111,7 @@ func CreateUserService(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 
-	err = repository.CreateUserTx(db, req, hashedPass)
+	err = s.Repo.CreateUserTx(ctx, req, hashedPass)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
@@ -73,7 +125,10 @@ func CreateUserService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func UpdateUserService(c *fiber.Ctx, db *sql.DB) error {
+func (s *UsersService) UpdateUserService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	id := c.Params("id")
 
 	var req model.UpdateUserRequest
@@ -84,11 +139,35 @@ func UpdateUserService(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 
-	err := repository.UpdateUser(db, id, req)
+	_, err := s.Repo.GetUserDetail(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Pengguna tidak ditemukan",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal memeriksa pengguna",
+		})
+	}
+
+	if req.AdvisorID != nil && *req.AdvisorID != "" {
+		exists, err := s.Repo.CheckAdvisorExists(ctx, *req.AdvisorID)
+		if err != nil || !exists {
+			return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Dosen pembimbing tidak ditemukan",
+			})
+		}
+	}
+
+	err = s.Repo.UpdateUserTx(ctx, id, req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
-			Error:  "Gagal memperbarui pengguna",
+			Error:  "Gagal memperbarui pengguna: " + err.Error(),
 		})
 	}
 
@@ -98,10 +177,27 @@ func UpdateUserService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func DeleteUserService(c *fiber.Ctx, db *sql.DB) error {
+func (s *UsersService) DeleteUserService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	id := c.Params("id")
 
-	err := repository.DeleteUser(db, id)
+	_, err := s.Repo.GetUserDetail(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(model.APIResponse{
+				Status: "error",
+				Error:  "Pengguna tidak ditemukan",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "Gagal memeriksa pengguna",
+		})
+	}
+
+	err = s.Repo.DeleteUser(ctx, id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
@@ -115,7 +211,10 @@ func DeleteUserService(c *fiber.Ctx, db *sql.DB) error {
 	})
 }
 
-func AssignRoleService(c *fiber.Ctx, db *sql.DB) error {
+func (s *UsersService) AssignRoleService(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	id := c.Params("id")
 
 	var req model.AssignRoleRequest
@@ -126,7 +225,14 @@ func AssignRoleService(c *fiber.Ctx, db *sql.DB) error {
 		})
 	}
 
-	err := repository.UpdateUserRole(db, id, req.RoleName)
+	if req.RoleName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(model.APIResponse{
+			Status: "error",
+			Error:  "role_name wajib diisi",
+		})
+	}
+
+	err := s.Repo.UpdateUserRole(ctx, id, req.RoleName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(model.APIResponse{
 			Status: "error",
@@ -138,4 +244,34 @@ func AssignRoleService(c *fiber.Ctx, db *sql.DB) error {
 		Status:  "success",
 		Message: "Role berhasil diperbarui",
 	})
+}
+
+func GetAllUsersService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.GetAllUsersService(c)
+}
+
+func GetUserDetailService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.GetUserDetailService(c)
+}
+
+func CreateUserService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.CreateUserService(c)
+}
+
+func UpdateUserService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.UpdateUserService(c)
+}
+
+func DeleteUserService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.DeleteUserService(c)
+}
+
+func AssignRoleService(c *fiber.Ctx, db *sql.DB) error {
+	service := NewUsersService(db)
+	return service.AssignRoleService(c)
 }

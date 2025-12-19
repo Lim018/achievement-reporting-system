@@ -36,14 +36,6 @@ type StudentReportResponse struct {
 	Achievements      []StudentAchievementInfo  `json:"achievements"`
 }
 
-type StudentInfo struct {
-	ID           string `json:"id"`
-	FullName     string `json:"full_name"`
-	StudentID    string `json:"student_id"`
-	StudyProgram string `json:"study_program"`
-	AdvisorName  string `json:"advisor_name"`
-}
-
 type StudentSummary struct {
 	TotalAchievements int `json:"total_achievements"`
 	TotalPoints       int `json:"total_points"`
