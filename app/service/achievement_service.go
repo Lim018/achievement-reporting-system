@@ -425,46 +425,78 @@ func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
 }
 
 func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
+	// 1. Parse Query Parameters untuk Pagination, Sorting, dan Filtering
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	status := c.Query("status")
+	sortBy := c.Query("sort_by", "created_at")
+	sortOrder := c.Query("sort_order", "desc")
+
+	// 2. Siapkan Filter Struct
+	filter := model.AchievementFilter{
+		Page:      page,
+		Limit:     limit,
+		Status:    status,
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
+	}
+
+	// 3. Tentukan Context Role (RBAC)
+	// Admin dapat melihat semua data, namun role lain dibatasi scope-nya
 	role := getUserRole(c)
 	userID := getUserID(c)
+	filter.Role = role
 
-	var list []model.AchievementDetailResponse
-	var err error
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	switch role {
-	case "Admin":
-		list, err = s.PGRepo.ListForAdmin()
-	case "Dosen Wali":
-		list, err = s.PGRepo.ListForAdvisor(userID)
-	default:
-		studentID, _ := getStudentID(c, s.PG)
-		list, err = s.PGRepo.ListForStudent(studentID)
+	if role == "Mahasiswa" {
+		studentID, err := getStudentID(c, s.PG)
+		if err != nil {
+			return c.Status(403).JSON(model.APIResponse{Status: "error", Error: "Unauthorized student"})
+		}
+		filter.StudentID = studentID
+	} else if role == "Dosen Wali" {
+		// Dosen Wali hanya melihat data mahasiswa bimbingannya (FR-006)
+		filter.UserID = userID 
 	}
+	// Admin (FR-010) tidak perlu filter ID tambahan, akan melihat semua [cite: 242, 246]
 
+	// 4. Ambil Data Referensi dari PostgreSQL (dengan Pagination & Filter)
+	// Ini memenuhi flow "Get all achievement references" dan "Apply filters" [cite: 246, 248]
+	list, meta, err := s.PGRepo.FindAllWithFilter(filter)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data"})
+		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil data referensi"})
 	}
 
+	// 5. Batch Fetch Detail dari MongoDB
+	// Ini memenuhi flow "Fetch details dari MongoDB" [cite: 247]
 	mongoIDs := make([]string, 0, len(list))
 	for _, item := range list {
 		mongoIDs = append(mongoIDs, item.MongoID)
 	}
 
-	achievements, err := s.batchFetchAchievements(ctx, mongoIDs)
+	achievements, err := s.batchFetchAchievements(c.Context(), mongoIDs)
 	if err != nil {
-		return c.Status(500).JSON(model.APIResponse{Status: "error", Error: "Gagal mengambil detail"})
+		// Kita log error tapi tetap kembalikan list (detail mungkin null)
+		fmt.Printf("Error fetching mongo details: %v\n", err)
 	}
 
+	// 6. Merge Data PostgreSQL dan MongoDB
 	for i := range list {
 		if ach, ok := achievements[list[i].MongoID]; ok && ach != nil {
 			list[i].Achievement = *ach
 		}
 	}
 
-	return c.JSON(model.APIResponse{Status: "success", Data: list})
+	// 7. Return Response dengan Pagination Wrapper
+	// Ini memenuhi flow "Return dengan pagination" 
+	response := model.PaginatedAchievementResponse{
+		Data: list,
+		Meta: meta,
+	}
+
+	return c.JSON(model.APIResponse{
+		Status: "success", 
+		Data:   response,
+	})
 }
 
 func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {

@@ -3,7 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"go-fiber/app/model"
+	"math"
+	"strings"
 	"time"
 )
 
@@ -79,6 +82,131 @@ func (r *AchievementRefRepo) Close() {
 	if r.stmtListAdv != nil {
 		r.stmtListAdv.Close()
 	}
+}
+
+func (r *AchievementRefRepo) FindAllWithFilter(filter model.AchievementFilter) ([]model.AchievementDetailResponse, model.MetaPagination, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var whereClauses []string
+	var args []interface{}
+	argIdx := 1
+
+	baseQuery := `
+		FROM achievement_references ar
+		JOIN students s ON ar.student_id = s.id
+		LEFT JOIN lecturers l ON s.advisor_id = l.id
+	`
+
+	whereClauses = append(whereClauses, "ar.status != 'deleted'")
+
+	if filter.Role == "Mahasiswa" {
+		whereClauses = append(whereClauses, fmt.Sprintf("ar.student_id = $%d", argIdx))
+		args = append(args, filter.StudentID)
+		argIdx++
+	} else if filter.Role == "Dosen Wali" {
+		whereClauses = append(whereClauses, fmt.Sprintf("l.user_id = $%d", argIdx))
+		args = append(args, filter.UserID)
+		argIdx++
+	}
+
+	if filter.Status != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("ar.status = $%d", argIdx))
+		args = append(args, filter.Status)
+		argIdx++
+	}
+
+	whereString := ""
+	if len(whereClauses) > 0 {
+		whereString = " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	var totalData int64
+	countQuery := "SELECT COUNT(*) " + baseQuery + whereString
+	err := r.PG.QueryRowContext(ctx, countQuery, args...).Scan(&totalData)
+	if err != nil {
+		return nil, model.MetaPagination{}, err
+	}
+
+	sortField := "ar.created_at"
+	if filter.SortBy == "updated_at" {
+		sortField = "ar.updated_at"
+	} else if filter.SortBy == "status" {
+		sortField = "ar.status"
+	}
+
+	sortOrder := "DESC"
+	if strings.ToLower(filter.SortOrder) == "asc" {
+		sortOrder = "ASC"
+	}
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	finalQuery := `
+		SELECT ar.id, ar.student_id, ar.mongo_achievement_id, ar.status,
+		       ar.submitted_at, ar.verified_at, ar.verified_by, ar.rejection_note,
+		       ar.created_at, ar.updated_at, l.user_id
+	` + baseQuery + whereString + fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortField, sortOrder, argIdx, argIdx+1)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.PG.QueryContext(ctx, finalQuery, args...)
+	if err != nil {
+		return nil, model.MetaPagination{}, err
+	}
+	defer rows.Close()
+
+	var out []model.AchievementDetailResponse
+	for rows.Next() {
+		var item model.AchievementDetailResponse
+		var submittedAt, verifiedAt sql.NullTime
+		var verifiedBy, rejectionNote sql.NullString
+		var advisorUserID sql.NullString 
+
+		err := rows.Scan(
+			&item.ReferenceID,
+			&item.StudentID,
+			&item.MongoID,
+			&item.ReferenceStatus,
+			&submittedAt,
+			&verifiedAt,
+			&verifiedBy,
+			&rejectionNote,
+			&item.CreatedAtRef,
+			&item.UpdatedAtRef,
+			&advisorUserID,
+		)
+		if err != nil {
+			return nil, model.MetaPagination{}, err
+		}
+
+		if submittedAt.Valid { item.SubmittedAt = &submittedAt.Time }
+		if verifiedAt.Valid { item.VerifiedAt = &verifiedAt.Time }
+		if verifiedBy.Valid { s := verifiedBy.String; item.VerifiedBy = &s }
+		if rejectionNote.Valid { s := rejectionNote.String; item.RejectionNote = &s }
+		if advisorUserID.Valid { item.AdvisorID = advisorUserID.String }
+
+		out = append(out, item)
+	}
+
+	totalPage := int(math.Ceil(float64(totalData) / float64(limit)))
+
+	meta := model.MetaPagination{
+		CurrentPage: page,
+		TotalPage:   totalPage,
+		TotalData:   totalData,
+		PerPage:     limit,
+	}
+
+	return out, meta, nil
 }
 
 func (r *AchievementRefRepo) CreateReference(studentID, mongoHex string) (string, error) {

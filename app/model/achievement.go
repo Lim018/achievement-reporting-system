@@ -70,6 +70,31 @@ type CreateAchievementRequest struct {
 	Attachments     []Attachment           `json:"attachments,omitempty"`
 }
 
+type AchievementFilter struct {
+	Page      int    `query:"page"`
+	Limit     int    `query:"limit"`
+	Status    string `query:"status"`
+	SortBy    string `query:"sort_by"`
+	SortOrder string `query:"sort_order"`
+	
+	Role          string
+	UserID        string
+	AdvisorUserID string
+	StudentID     string
+}
+
+type MetaPagination struct {
+	CurrentPage int   `json:"current_page"`
+	TotalPage   int   `json:"total_page"`
+	TotalData   int64 `json:"total_data"`
+	PerPage     int   `json:"per_page"`
+}
+
+type PaginatedAchievementResponse struct {
+	Data []AchievementDetailResponse `json:"data"`
+	Meta MetaPagination              `json:"meta"`
+}
+
 type UpdateAchievementRequest struct {
 	Title       *string                `json:"title,omitempty"`
 	Description *string                `json:"description,omitempty"`
