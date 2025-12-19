@@ -22,6 +22,16 @@ func NewUsersService(db *sql.DB) *UsersService {
 	}
 }
 
+// GetAllUsersService mendapatkan semua pengguna
+// @Summary Get all users
+// @Description Mengambil daftar semua pengguna (Admin only)
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=[]model.UserResponse}
+// @Failure 500 {object} model.APIResponse
+// @Router /api/v1/users [get]
 func (s *UsersService) GetAllUsersService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -40,6 +50,17 @@ func (s *UsersService) GetAllUsersService(c *fiber.Ctx) error {
 	})
 }
 
+// GetUserDetailService mendapatkan detail pengguna
+// @Summary Get user detail
+// @Description Mengambil detail pengguna berdasarkan ID
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=model.UserResponse}
+// @Failure 404 {object} model.APIResponse
+// @Router /api/v1/users/{id} [get]
 func (s *UsersService) GetUserDetailService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -66,6 +87,17 @@ func (s *UsersService) GetUserDetailService(c *fiber.Ctx) error {
 	})
 }
 
+// CreateUserService membuat pengguna baru
+// @Summary Create new user
+// @Description Membuat pengguna baru (Admin only)
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body model.CreateUserRequest true "User Data"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Router /api/v1/users [post]
 func (s *UsersService) CreateUserService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -125,6 +157,18 @@ func (s *UsersService) CreateUserService(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateUserService memperbarui pengguna
+// @Summary Update user
+// @Description Memperbarui data pengguna
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param request body model.UpdateUserRequest true "Update Data"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Router /api/v1/users/{id} [put]
 func (s *UsersService) UpdateUserService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -177,6 +221,16 @@ func (s *UsersService) UpdateUserService(c *fiber.Ctx) error {
 	})
 }
 
+// DeleteUserService menghapus pengguna
+// @Summary Delete user
+// @Description Menghapus pengguna secara permanen (Admin only)
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse
+// @Router /api/v1/users/{id} [delete]
 func (s *UsersService) DeleteUserService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -1,0 +1,1320 @@
+basePath: /
+definitions:
+  model.APIResponse:
+    properties:
+      data: {}
+      error:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  model.Achievement:
+    properties:
+      achievementType:
+        type: string
+      attachments:
+        items:
+          $ref: '#/definitions/model.Attachment'
+        type: array
+      createdAt:
+        type: string
+      description:
+        type: string
+      details:
+        $ref: '#/definitions/model.AchievementDetails'
+      id:
+        type: string
+      points:
+        type: integer
+      studentId:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  model.AchievementDetailResponse:
+    properties:
+      achievement:
+        $ref: '#/definitions/model.Achievement'
+      advisor_id:
+        type: string
+      created_at_ref:
+        type: string
+      mongo_id:
+        type: string
+      reference_id:
+        type: string
+      rejection_note:
+        type: string
+      status:
+        type: string
+      student_id:
+        type: string
+      submitted_at:
+        type: string
+      updated_at_ref:
+        type: string
+      verified_at:
+        type: string
+      verified_by:
+        type: string
+    type: object
+  model.AchievementDetails:
+    properties:
+      authors:
+        items:
+          type: string
+        type: array
+      certificationName:
+        type: string
+      certificationNumber:
+        type: string
+      competitionLevel:
+        type: string
+      competitionName:
+        type: string
+      customFields:
+        additionalProperties: true
+        type: object
+      eventDate:
+        type: string
+      issn:
+        type: string
+      issuedBy:
+        type: string
+      location:
+        type: string
+      medalType:
+        type: string
+      organizationName:
+        type: string
+      organizer:
+        type: string
+      period:
+        $ref: '#/definitions/model.Period'
+      position:
+        type: string
+      publicationTitle:
+        type: string
+      publicationType:
+        type: string
+      publisher:
+        type: string
+      rank:
+        type: integer
+      score:
+        type: number
+      validUntil:
+        type: string
+    type: object
+  model.Attachment:
+    properties:
+      fileName:
+        type: string
+      fileType:
+        type: string
+      fileUrl:
+        type: string
+      uploadedAt:
+        type: string
+    type: object
+  model.CreateAchievementRequest:
+    properties:
+      achievement_type:
+        type: string
+      attachments:
+        items:
+          $ref: '#/definitions/model.Attachment'
+        type: array
+      description:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      points:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    required:
+    - achievement_type
+    - title
+    type: object
+  model.CreateUserRequest:
+    properties:
+      advisor_id:
+        type: string
+      department:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      lecturer_id:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      role_name:
+        type: string
+      student_id:
+        type: string
+      study_program:
+        type: string
+      username:
+        type: string
+      year:
+        type: integer
+    required:
+    - email
+    - full_name
+    - password
+    - role_name
+    - username
+    type: object
+  model.LecturerResponse:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      lecturer_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  model.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  model.LoginResponse:
+    properties:
+      refreshToken:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/model.UserResponse'
+    type: object
+  model.MetaPagination:
+    properties:
+      current_page:
+        type: integer
+      per_page:
+        type: integer
+      total_data:
+        type: integer
+      total_page:
+        type: integer
+    type: object
+  model.MonthlyGrowthData:
+    properties:
+      month:
+        type: string
+      total_achievements:
+        type: integer
+    type: object
+  model.PaginatedAchievementResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.AchievementDetailResponse'
+        type: array
+      meta:
+        $ref: '#/definitions/model.MetaPagination'
+    type: object
+  model.Period:
+    properties:
+      end:
+        type: string
+      start:
+        type: string
+    type: object
+  model.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  model.StudentAchievementInfo:
+    properties:
+      mongo_id:
+        type: string
+      points:
+        type: integer
+      reference_id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      verified_at:
+        type: string
+    type: object
+  model.StudentAchievementsResponse:
+    properties:
+      achievements:
+        items:
+          $ref: '#/definitions/model.AchievementDetailResponse'
+        type: array
+      student:
+        $ref: '#/definitions/model.StudentDetailResponse'
+    type: object
+  model.StudentDetailResponse:
+    properties:
+      advisor_id:
+        type: string
+      advisor_name:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      student_id:
+        type: string
+      study_program:
+        type: string
+      user_id:
+        type: string
+      year_of_entry:
+        type: integer
+    type: object
+  model.StudentInfo:
+    properties:
+      advisor_id:
+        type: string
+      advisor_name:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      student_id:
+        type: string
+      study_program:
+        type: string
+      year_of_entry:
+        type: integer
+    type: object
+  model.StudentReportResponse:
+    properties:
+      achievement_by_type:
+        additionalProperties:
+          type: integer
+        type: object
+      achievement_status:
+        additionalProperties:
+          type: integer
+        type: object
+      achievements:
+        items:
+          $ref: '#/definitions/model.StudentAchievementInfo'
+        type: array
+      monthly_growth:
+        items:
+          $ref: '#/definitions/model.MonthlyGrowthData'
+        type: array
+      student:
+        $ref: '#/definitions/model.StudentInfo'
+      summary:
+        $ref: '#/definitions/model.StudentSummary'
+    type: object
+  model.StudentResponse:
+    properties:
+      academic_year:
+        type: string
+      advisor_id:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      program_study:
+        type: string
+      student_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  model.StudentSummary:
+    properties:
+      total_achievements:
+        type: integer
+      total_points:
+        type: integer
+    type: object
+  model.SystemStatisticsResponse:
+    properties:
+      achievement_by_type:
+        additionalProperties:
+          type: integer
+        type: object
+      achievement_status:
+        additionalProperties:
+          type: integer
+        type: object
+      monthly_growth:
+        items:
+          $ref: '#/definitions/model.MonthlyGrowthData'
+        type: array
+      top_students:
+        items:
+          $ref: '#/definitions/model.TopStudentData'
+        type: array
+      totals:
+        $ref: '#/definitions/model.TotalsData'
+    type: object
+  model.TopStudentData:
+    properties:
+      full_name:
+        type: string
+      student_id:
+        type: string
+      total_points:
+        type: integer
+    type: object
+  model.TotalsData:
+    properties:
+      achievements:
+        type: integer
+      lecturers:
+        type: integer
+      students:
+        type: integer
+    type: object
+  model.UpdateAchievementRequest:
+    properties:
+      description:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      points:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
+  model.UpdateStudentAdvisorRequest:
+    properties:
+      advisor_id:
+        type: string
+    required:
+    - advisor_id
+    type: object
+  model.UpdateUserRequest:
+    properties:
+      advisor_id:
+        type: string
+      department:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      lecturer_id:
+        type: string
+      student_id:
+        type: string
+      study_program:
+        type: string
+      year_of_entry:
+        type: integer
+    type: object
+  model.UserResponse:
+    properties:
+      email:
+        type: string
+      fullName:
+        type: string
+      id:
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: support@university.ac.id
+    name: API Support
+  description: Dokumentasi API untuk Sistem Pelaporan Prestasi Mahasiswa
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Achievement Reporting System API
+  version: "1.0"
+paths:
+  /api/v1/achievements:
+    get:
+      consumes:
+      - application/json
+      description: Melihat daftar prestasi dengan filter dan pagination
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter status
+        in: query
+        name: status
+        type: string
+      - description: Sort by field
+        in: query
+        name: sort_by
+        type: string
+      - description: Sort order (asc/desc)
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.PaginatedAchievementResponse'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: List achievements
+      tags:
+      - Achievements
+    post:
+      consumes:
+      - application/json
+      description: Mahasiswa membuat laporan prestasi baru (Draft)
+      parameters:
+      - description: Achievement Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateAchievementRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    mongo_id:
+                      type: string
+                    reference_id:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create achievement
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus prestasi yang masih draft
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete achievement
+      tags:
+      - Achievements
+    get:
+      consumes:
+      - application/json
+      description: Melihat detail lengkap prestasi
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AchievementDetailResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get achievement detail
+      tags:
+      - Achievements
+    put:
+      consumes:
+      - application/json
+      description: Memperbarui data prestasi yang masih berstatus draft/rejected
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateAchievementRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update achievement
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}/attachments:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload file bukti prestasi
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Files to upload
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload attachments
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}/history:
+    get:
+      consumes:
+      - application/json
+      description: Melihat riwayat perubahan status prestasi
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get achievement history
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Dosen Wali menolak prestasi mahasiswa dengan catatan
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Rejection Note
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            note:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject achievement
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Mengirimkan prestasi untuk diverifikasi oleh dosen wali
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit achievement
+      tags:
+      - Achievements
+  /api/v1/achievements/{id}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Dosen Wali memverifikasi prestasi mahasiswa
+      parameters:
+      - description: Achievement Reference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Points Awarded
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            points:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify achievement
+      tags:
+      - Achievements
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Masuk ke sistem menggunakan username/email dan password
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Login user
+      tags:
+      - Auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Invalidate refresh token (Client side action mainly)
+      parameters:
+      - description: Refresh Token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Auth
+  /api/v1/auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil data profil pengguna yang sedang login
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - Auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Mendapatkan access token baru menggunakan refresh token
+      parameters:
+      - description: Refresh Token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Refresh token
+      tags:
+      - Auth
+  /api/v1/lecturers:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar semua dosen
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.LecturerResponse'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get all lecturers
+      tags:
+      - Lecturers
+  /api/v1/lecturers/{id}/advisees:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar mahasiswa yang dibimbing oleh dosen tertentu
+      parameters:
+      - description: Lecturer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.StudentResponse'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get advisees
+      tags:
+      - Lecturers
+  /api/v1/reports/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Statistik dashboard untuk admin (Total data, Top students, Growth)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.SystemStatisticsResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get system statistics
+      tags:
+      - Reports
+  /api/v1/reports/student/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Laporan detail prestasi dan statistik untuk satu mahasiswa
+      parameters:
+      - description: Student ID or Student Number
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.StudentReportResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get student report
+      tags:
+      - Reports
+  /api/v1/students:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil semua data mahasiswa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.StudentResponse'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get all students
+      tags:
+      - Students
+  /api/v1/students/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil detail mahasiswa berdasarkan ID
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.StudentResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get student detail
+      tags:
+      - Students
+  /api/v1/students/{id}/achievements:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar prestasi milik mahasiswa tertentu
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.StudentAchievementsResponse'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get student achievements
+      tags:
+      - Students
+  /api/v1/students/{id}/advisor:
+    put:
+      consumes:
+      - application/json
+      description: Mengubah dosen wali mahasiswa
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Advisor Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateStudentAdvisorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update student advisor
+      tags:
+      - Students
+  /api/v1/users:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar semua pengguna (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.UserResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all users
+      tags:
+      - Users
+    post:
+      consumes:
+      - application/json
+      description: Membuat pengguna baru (Admin only)
+      parameters:
+      - description: User Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create new user
+      tags:
+      - Users
+  /api/v1/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus pengguna secara permanen (Admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - Users
+    get:
+      consumes:
+      - application/json
+      description: Mengambil detail pengguna berdasarkan ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user detail
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Memperbarui data pengguna
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - Users
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token dengan format: Bearer <token_jwt_anda>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

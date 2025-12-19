@@ -27,6 +27,15 @@ func NewStudentsService(db *sql.DB, mongoDB *mongo.Database) *StudentsService {
 	}
 }
 
+// GetAllStudentsService mendapatkan daftar mahasiswa
+// @Summary Get all students
+// @Description Mengambil semua data mahasiswa
+// @Tags Students
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=[]model.StudentResponse}
+// @Router /api/v1/students [get]
 func (s *StudentsService) GetAllStudentsService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -45,6 +54,16 @@ func (s *StudentsService) GetAllStudentsService(c *fiber.Ctx) error {
 	})
 }
 
+// GetStudentDetailService mendapatkan detail mahasiswa
+// @Summary Get student detail
+// @Description Mengambil detail mahasiswa berdasarkan ID
+// @Tags Students
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID (UUID)"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=model.StudentResponse}
+// @Router /api/v1/students/{id} [get]
 func (s *StudentsService) GetStudentDetailService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -71,6 +90,17 @@ func (s *StudentsService) GetStudentDetailService(c *fiber.Ctx) error {
 	})
 }
 
+// GetStudentAchievementsService mendapatkan prestasi mahasiswa
+// @Summary Get student achievements
+// @Description Mengambil daftar prestasi milik mahasiswa tertentu
+// @Tags Students
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID (UUID)"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=model.StudentAchievementsResponse}
+// @Failure 403 {object} model.APIResponse
+// @Router /api/v1/students/{id}/achievements [get]
 func (s *StudentsService) GetStudentAchievementsService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -176,6 +206,17 @@ func (s *StudentsService) GetStudentAchievementsService(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateStudentAdvisorService update dosen wali
+// @Summary Update student advisor
+// @Description Mengubah dosen wali mahasiswa
+// @Tags Students
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID (UUID)"
+// @Param request body model.UpdateStudentAdvisorRequest true "Advisor Data"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse
+// @Router /api/v1/students/{id}/advisor [put]
 func (s *StudentsService) UpdateStudentAdvisorService(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

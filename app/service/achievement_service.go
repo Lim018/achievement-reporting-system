@@ -199,6 +199,20 @@ func (s *AchievementService) batchFetchAchievements(ctx context.Context, mongoID
 }
 
 // func utama
+
+// CreateAchievementService membuat prestasi baru
+// @Summary Create achievement
+// @Description Mahasiswa membuat laporan prestasi baru (Draft)
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body model.CreateAchievementRequest true "Achievement Data"
+// @Success 200 {object} model.APIResponse{data=object{reference_id=string,mongo_id=string}}
+// @Failure 403 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 500 {object} model.APIResponse
+// @Router /api/v1/achievements [post]
 func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {
@@ -262,6 +276,19 @@ func (s *AchievementService) CreateAchievementService(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateAchievementService memperbarui prestasi
+// @Summary Update achievement
+// @Description Memperbarui data prestasi yang masih berstatus draft/rejected
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Param request body model.UpdateAchievementRequest true "Update Data"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 404 {object} model.APIResponse
+// @Router /api/v1/achievements/{id} [put]
 func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {
@@ -319,6 +346,18 @@ func (s *AchievementService) UpdateAchievementService(c *fiber.Ctx) error {
 	return c.JSON(model.APIResponse{Status: "success", Message: "Updated"})
 }
 
+// DeleteAchievementService menghapus prestasi
+// @Summary Delete achievement
+// @Description Menghapus prestasi yang masih draft
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 404 {object} model.APIResponse
+// @Router /api/v1/achievements/{id} [delete]
 func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {
@@ -344,6 +383,18 @@ func (s *AchievementService) DeleteAchievementService(c *fiber.Ctx) error {
 	return c.JSON(model.APIResponse{Status: "success", Message: "deleted"})
 }
 
+// SubmitAchievementService submit prestasi
+// @Summary Submit achievement
+// @Description Mengirimkan prestasi untuk diverifikasi oleh dosen wali
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 404 {object} model.APIResponse
+// @Router /api/v1/achievements/{id}/submit [post]
 func (s *AchievementService) SubmitAchievementService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {
@@ -367,6 +418,18 @@ func (s *AchievementService) SubmitAchievementService(c *fiber.Ctx) error {
 	return c.JSON(model.APIResponse{Status: "success", Message: "submitted"})
 }
 
+// VerifyAchievementService verifikasi prestasi
+// @Summary Verify achievement
+// @Description Dosen Wali memverifikasi prestasi mahasiswa
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Param request body object{points=int} true "Points Awarded"
+// @Success 200 {object} model.APIResponse
+// @Failure 403 {object} model.APIResponse
+// @Router /api/v1/achievements/{id}/verify [post]
 func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
 	advisorID := getUserID(c)
 	if getUserRole(c) != "Dosen Wali" {
@@ -403,6 +466,18 @@ func (s *AchievementService) VerifyAchievementService(c *fiber.Ctx) error {
 	return c.JSON(model.APIResponse{Status: "success", Message: "verified"})
 }
 
+// RejectAchievementService menolak prestasi
+// @Summary Reject achievement
+// @Description Dosen Wali menolak prestasi mahasiswa dengan catatan
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Param request body object{note=string} true "Rejection Note"
+// @Success 200 {object} model.APIResponse
+// @Failure 403 {object} model.APIResponse
+// @Router /api/v1/achievements/{id}/reject [post]
 func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
 	advisorID := getUserID(c)
 	refID := c.Params("id")
@@ -424,6 +499,21 @@ func (s *AchievementService) RejectAchievementService(c *fiber.Ctx) error {
 	return c.JSON(model.APIResponse{Status: "success", Message: "rejected"})
 }
 
+// ListAchievementsService melihat daftar prestasi
+// @Summary List achievements
+// @Description Melihat daftar prestasi dengan filter dan pagination
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Page number"
+// @Param limit query int false "Limit per page"
+// @Param status query string false "Filter status"
+// @Param sort_by query string false "Sort by field"
+// @Param sort_order query string false "Sort order (asc/desc)"
+// @Success 200 {object} model.APIResponse{data=model.PaginatedAchievementResponse}
+// @Failure 500 {object} model.APIResponse
+// @Router /api/v1/achievements [get]
 func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 10)
@@ -484,6 +574,17 @@ func (s *AchievementService) ListAchievementsService(c *fiber.Ctx) error {
 	})
 }
 
+// GetAchievementDetailService melihat detail prestasi
+// @Summary Get achievement detail
+// @Description Melihat detail lengkap prestasi
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Success 200 {object} model.APIResponse{data=model.AchievementDetailResponse}
+// @Failure 404 {object} model.APIResponse
+// @Router /api/v1/achievements/{id} [get]
 func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 	refID := c.Params("id")
 	role := getUserRole(c)
@@ -552,6 +653,16 @@ func (s *AchievementService) GetAchievementDetailService(c *fiber.Ctx) error {
 	})
 }
 
+// GetHistoryService melihat history status
+// @Summary Get achievement history
+// @Description Melihat riwayat perubahan status prestasi
+// @Tags Achievements
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Success 200 {object} model.APIResponse
+// @Router /api/v1/achievements/{id}/history [get]
 func (s *AchievementService) GetHistoryService(c *fiber.Ctx) error {
 	refID := c.Params("id")
 	role := getUserRole(c)
@@ -628,6 +739,18 @@ func (s *AchievementService) GetHistoryService(c *fiber.Ctx) error {
 	})
 }
 
+// UploadAttachmentsService upload lampiran
+// @Summary Upload attachments
+// @Description Upload file bukti prestasi
+// @Tags Achievements
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Achievement Reference ID"
+// @Param files formData file true "Files to upload"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Router /api/v1/achievements/{id}/attachments [post]
 func (s *AchievementService) UploadAttachmentsService(c *fiber.Ctx) error {
 	studentID, err := getStudentID(c, s.PG)
 	if err != nil {

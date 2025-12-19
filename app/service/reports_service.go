@@ -23,6 +23,15 @@ func NewReportsService(pg *sql.DB, mongoDB *mongo.Database) *ReportsService {
 	}
 }
 
+// GetSystemStatistics mendapatkan statistik sistem
+// @Summary Get system statistics
+// @Description Statistik dashboard untuk admin (Total data, Top students, Growth)
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=model.SystemStatisticsResponse}
+// @Router /api/v1/reports/statistics [get]
 func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -111,6 +120,16 @@ func (s *ReportsService) GetSystemStatistics(c *fiber.Ctx) error {
 	})
 }
 
+// GetStudentReport mendapatkan laporan individu mahasiswa
+// @Summary Get student report
+// @Description Laporan detail prestasi dan statistik untuk satu mahasiswa
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param id path string true "Student ID or Student Number"
+// @Security BearerAuth
+// @Success 200 {object} model.APIResponse{data=model.StudentReportResponse}
+// @Router /api/v1/reports/student/{id} [get]
 func (s *ReportsService) GetStudentReport(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

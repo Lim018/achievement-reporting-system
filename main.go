@@ -1,15 +1,39 @@
 package main
 
 import (
-	// "context"
 	"flag"
 	"log"
 	"os"
+
 	"go-fiber/config"
 	"go-fiber/database"
 	"go-fiber/routes"
+
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/swagger"
+
+	_ "go-fiber/docs"
 )
 
+// @title Achievement Reporting System API
+// @version 1.0
+// @description Dokumentasi API untuk Sistem Pelaporan Prestasi Mahasiswa
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.email support@university.ac.id
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:3000
+// @BasePath /
+// @schemes http
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Masukkan token dengan format: Bearer <token_jwt_anda>
 func main() {
 	migrate := flag.Bool("migrate", false, "Run database migrations")
 	seed := flag.Bool("seed", false, "Run database seeders")
@@ -68,6 +92,9 @@ func main() {
 	}
 
 	app := config.NewApp(db)
+	app.Use(cors.New())
+
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	routes.RegisterRoutes(app, db, mongoDB)
 

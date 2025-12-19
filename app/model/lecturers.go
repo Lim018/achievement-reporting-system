@@ -10,6 +10,15 @@ type Lecturer struct {
     CreatedAt  time.Time `json:"created_at"`
 }
 
+type LecturerResponse struct {
+	ID         string `json:"id"`
+	UserID     string `json:"user_id"`
+	LecturerID string `json:"lecturer_id"`
+	FullName   string `json:"full_name"`
+	Email      string `json:"email"`
+	Department string `json:"department"`
+}
+
 type LecturerListResponse struct {
     ID         string `json:"id"`
 	UserID     string `json:"user_id"`
